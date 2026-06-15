@@ -216,7 +216,16 @@ canvas{max-width:100%;}
   <!-- ============ TRANSACTIONS ============ -->
   <div class="page" id="page-tx">
     <h1>Transactions</h1>
-    <div class="field"><select id="txFilter" onchange="renderTx()"></select></div>
+    <div class="row">
+      <div class="field" style="margin-bottom:10px"><select id="txFilter" onchange="renderTx()"></select></div>
+      <div class="field" style="margin-bottom:10px"><select id="txPeriod" onchange="onTxPeriodChange()"></select></div>
+    </div>
+    <div id="txCustom" class="card" style="display:none;margin-bottom:10px">
+      <div class="row">
+        <div><label>From</label><input type="date" id="txFrom" onchange="renderTx()"></div>
+        <div><label>To</label><input type="date" id="txTo" onchange="renderTx()"></div>
+      </div>
+    </div>
     <div class="card" id="txList"></div>
   </div>
 
@@ -369,7 +378,7 @@ canvas{max-width:100%;}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 /* ============================================================= DATA */
-const CATS = ["Wages","Important","Groceries","Food & Drink","Transport","Lifestyle","Item Purchases","Entertainment","Holidays","Savings"];
+const CATS = ["Wages","Important","Groceries","Food & Drink","Transport","Discretionary","Holidays","Savings"];
 const INCOME_CATS = ["Wages"];               // treated as income
 const SAVINGS_CAT = "Savings";
 // Recurring frequencies
@@ -384,13 +393,12 @@ const FREQS = [
 const FREQ_LABEL = {weekly:"Weekly",fortnightly:"Every 2 weeks",monthly:"Monthly (same date)",monthly30:"Monthly (30 days)",quarterly:"Every 3 months",annually:"Annually"};
 const COLORS = {
   "Wages":"#10b981","Important":"#3b82f6","Groceries":"#22c55e","Food & Drink":"#f59e0b",
-  "Transport":"#8b5cf6","Lifestyle":"#ec4899","Item Purchases":"#ef4444","Entertainment":"#06b6d4",
-  "Holidays":"#14b8a6","Savings":"#a3e635"
+  "Transport":"#8b5cf6","Discretionary":"#ec4899","Holidays":"#14b8a6","Savings":"#a3e635"
 };
 // 50/30/20 default targets as % of income
 const DEFAULT_TARGETS = {
   "Important":30, "Groceries":10, "Transport":5,                          // Needs
-  "Food & Drink":8, "Lifestyle":6, "Entertainment":6, "Holidays":5, "Item Purchases":5, // Wants
+  "Food & Drink":8, "Discretionary":17, "Holidays":5,                     // Wants
   "Savings":20                                                            // Savings
 };
 
@@ -430,13 +438,15 @@ function load(){
         : todayISO();
     }
   });
-  // migrate: 'One Offs' renamed to 'Item Purchases'
-  const ren = c => c==="One Offs" ? "Item Purchases" : c;
+  // migrate: Lifestyle / Item Purchases / Entertainment (and legacy 'One Offs') -> 'Discretionary'
+  const COMBINE=["One Offs","Item Purchases","Lifestyle","Entertainment"];
+  const ren = c => COMBINE.indexOf(c)>=0 ? "Discretionary" : c;
   (DB.txns||[]).forEach(t=>{ t.category=ren(t.category); });
   (DB.recurring||[]).forEach(r=>{ r.category=ren(r.category); });
   if(DB.targets){
-    if(DB.targets["One Offs"]!=null && DB.targets["Item Purchases"]==null){ DB.targets["Item Purchases"]=DB.targets["One Offs"]; }
-    delete DB.targets["One Offs"];
+    let sum=+(DB.targets["Discretionary"]||0), found=false;
+    COMBINE.forEach(c=>{ if(DB.targets[c]!=null){ sum+=+DB.targets[c]||0; delete DB.targets[c]; found=true; } });
+    if(found) DB.targets["Discretionary"]=sum;
     delete DB.targets["Credit Card"];   // category removed
   }
   if(!Array.isArray(DB.users)) DB.users=[];
@@ -620,7 +630,7 @@ function renderDash(){
       fillW=Math.min(100, d.target>0?ratio*100:(d.net>0?100:0));
       fillCol = ratio>1?"var(--red)":(ratio>0.85?"var(--amber)":"var(--green)");
     }
-    return `<div class="cat">
+    return `<div class="cat" onclick="openHistory('${d.c.replace(/'/g,"\\'")}')" style="cursor:pointer">
       <div class="top">
         <span class="name"><span class="dot" style="background:${COLORS[d.c]||'#64748b'}"></span>${d.c}</span>
         <span class="amt">${gbp0(d.net)}</span>
@@ -793,11 +803,48 @@ function saveRecEdit(){
 function renderTxFilter(){
   const sel=document.getElementById("txFilter");
   if(sel.options.length===0) fillCatSelect(sel,true);
+  const ps=document.getElementById("txPeriod");
+  if(ps.options.length===0) ps.innerHTML=[["all","All dates"],["month","This month"],["lastmonth","Last month"],["custom","Custom\u2026"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
+}
+// date range for the History timeframe filter (null = all dates)
+function txRange(){
+  const k=document.getElementById("txPeriod").value;
+  if(!k || k==="all") return null;
+  const now=new Date(); now.setHours(0,0,0,0);
+  let from,to=new Date(now); to.setHours(23,59,59,999);
+  if(k==="month"){ from=new Date(now.getFullYear(),now.getMonth(),1); }
+  else if(k==="lastmonth"){ from=new Date(now.getFullYear(),now.getMonth()-1,1); to=new Date(now.getFullYear(),now.getMonth(),0); to.setHours(23,59,59,999); }
+  else if(k==="custom"){ const f=document.getElementById("txFrom").value, t=document.getElementById("txTo").value; from=f?parse(f):new Date(2000,0,1); to=t?parse(t):to; to.setHours(23,59,59,999); }
+  else return null;
+  from.setHours(0,0,0,0);
+  return {from,to};
+}
+function onTxPeriodChange(){
+  document.getElementById("txCustom").style.display = document.getElementById("txPeriod").value==="custom" ? "block":"none";
+  renderTx();
+}
+// open History pre-filtered by a category + the dashboard's current timeframe
+function openHistory(cat){
+  go("tx");
+  document.getElementById("txFilter").value=cat;
+  const k=PERIOD.key;
+  const ps=document.getElementById("txPeriod");
+  if(k==="month"||k==="lastmonth"||k==="all"){ ps.value=k; document.getElementById("txCustom").style.display="none"; }
+  else { // ytd / yearview / lastyear / custom -> use the dashboard's exact date range
+    const r=periodRange();
+    ps.value="custom";
+    document.getElementById("txFrom").value=ymd(r.from);
+    document.getElementById("txTo").value=ymd(r.to);
+    document.getElementById("txCustom").style.display="block";
+  }
+  renderTx();
 }
 function renderTx(){
   const f=document.getElementById("txFilter").value;
+  const rg=txRange();
   let tx=[...DB.txns].sort((a,b)=>a.date<b.date?1:-1);
   if(f) tx=tx.filter(t=>t.category===f);
+  if(rg) tx=tx.filter(t=>{ const d=parse(t.date); return d>=rg.from && d<=rg.to; });
   const list=document.getElementById("txList");
   if(tx.length===0){ list.innerHTML='<div class="empty">No transactions.</div>'; return; }
   list.innerHTML=tx.map(t=>{
