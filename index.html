@@ -14,7 +14,7 @@
 :root{
   --bg:#0f172a; --bg2:#1e293b; --card:#1e293b; --card2:#273449;
   --txt:#f1f5f9; --muted:#94a3b8; --line:#334155;
-  --green:#10b981; --red:#f43f5e; --amber:#f59e0b; --blue:#3b82f6;
+  --green:#10b981; --red:#f43f5e; --amber:#f59e0b; --orange:#ff7a00; --blue:#3b82f6;
   --accent:#10b981;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -621,14 +621,14 @@ function renderDash(){
       else if(ratio>=1){ flag="goal met"+(d.net>d.target?" · +"+gbp0(d.net-d.target):""); fcls="ok"; }
       else { flag=gbp0(d.target-d.net)+" to go"; fcls="near"; }
       fillW=Math.min(100, d.target>0?ratio*100:(d.net>0?100:0));
-      fillCol = ratio>=1?"var(--green)":"var(--amber)";
+      fillCol = ratio>=1?"var(--green)":"var(--orange)";
     } else {
       if(d.target<=0){ flag="no target"; fcls="ok"; }
       else if(ratio>1){ flag="cut back · "+gbp0(d.net-d.target)+" over"; fcls="over"; }
       else if(ratio>0.85){ flag="near limit"; fcls="near"; }
       else { flag="on track"; fcls="ok"; }
       fillW=Math.min(100, d.target>0?ratio*100:(d.net>0?100:0));
-      fillCol = ratio>1?"var(--red)":(ratio>0.85?"var(--amber)":"var(--green)");
+      fillCol = ratio>1?"var(--red)":(ratio>0.85?"var(--orange)":"var(--green)");
     }
     return `<div class="cat" onclick="openHistory('${d.c.replace(/'/g,"\\'")}')" style="cursor:pointer">
       <div class="top">
@@ -640,7 +640,7 @@ function renderDash(){
         ${d.target>0?`<div class="target-mark" style="left:${Math.min(100, 100*d.target/Math.max(d.net,d.target))}%"></div>`:""}
       </div>
       <div class="meta">
-        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(d.c===SAVINGS_CAT?" · min ":" · target ")+gbp0(d.target):""}</span>
+        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(d.c===SAVINGS_CAT?" · min ":" · target ")+gbp0(d.target):""}${(d.c!==SAVINGS_CAT && d.target>0 && d.net<d.target)?" · "+gbp0(d.target-d.net)+" left":""}</span>
         <span class="flag ${fcls}">${flag}</span>
       </div>
     </div>`;
@@ -652,7 +652,7 @@ function renderDash(){
     const remPct = remaining/targetBase*100;
     let col, label, shown, w;
     if(remaining < 0){ col="var(--red)"; w=100; label="Overspent by "+gbp0(-remaining); shown="-"+gbp0(-remaining); }
-    else { col = remPct>25?"var(--green)":"var(--amber)"; w=Math.max(0,Math.min(100,remPct)); label=gbp0(remaining)+" still to allocate"; shown=gbp0(remaining); }
+    else { col = remPct>25?"var(--green)":"var(--orange)"; w=Math.max(0,Math.min(100,remPct)); label=gbp0(remaining)+" still to allocate"; shown=gbp0(remaining); }
     const html = `<div class="cat alloc">
       <div class="top">
         <span class="name"><span class="dot" style="background:${col}"></span>Left to allocate</span>
