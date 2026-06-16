@@ -64,7 +64,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transf
 .flag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;}
 .flag.over{background:#3a1620;color:var(--red);}
 .flag.ok{background:#0c2e22;color:var(--green);}
-.flag.near{background:#3a2f12;color:var(--amber);}
+.flag.near{background:#3a2f12;color:var(--orange);}
 
 .pill{display:inline-block;font-size:11px;padding:3px 8px;border-radius:20px;background:var(--card2);color:var(--muted);}
 
@@ -378,9 +378,10 @@ canvas{max-width:100%;}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 /* ============================================================= DATA */
-const CATS = ["Wages","Important","Groceries","Food & Drink","Transport","Discretionary","Holidays","Savings"];
-const INCOME_CATS = ["Wages"];               // treated as income
+const CATS = ["Wages","Other Income","Important","Groceries","Food & Drink","Transport","Discretionary","Holidays","Savings","Investing"];
+const INCOME_CATS = ["Wages","Other Income"];  // treated as income (Other Income = gifts / one-off cash)
 const SAVINGS_CAT = "Savings";
+const FLOOR_CATS = ["Savings","Investing"];   // minimum-target cats; bars always green
 // Recurring frequencies
 const FREQS = [
   {key:"weekly",     label:"Weekly"},
@@ -392,14 +393,14 @@ const FREQS = [
 ];
 const FREQ_LABEL = {weekly:"Weekly",fortnightly:"Every 2 weeks",monthly:"Monthly (same date)",monthly30:"Monthly (30 days)",quarterly:"Every 3 months",annually:"Annually"};
 const COLORS = {
-  "Wages":"#10b981","Important":"#3b82f6","Groceries":"#22c55e","Food & Drink":"#f59e0b",
-  "Transport":"#8b5cf6","Discretionary":"#ec4899","Holidays":"#14b8a6","Savings":"#a3e635"
+  "Wages":"#10b981","Other Income":"#34d399","Important":"#3b82f6","Groceries":"#22c55e","Food & Drink":"#f59e0b",
+  "Transport":"#8b5cf6","Discretionary":"#ec4899","Holidays":"#14b8a6","Savings":"#a3e635","Investing":"#38bdf8"
 };
 // 50/30/20 default targets as % of income
 const DEFAULT_TARGETS = {
   "Important":30, "Groceries":10, "Transport":5,                          // Needs
   "Food & Drink":8, "Discretionary":17, "Holidays":5,                     // Wants
-  "Savings":20                                                            // Savings
+  "Savings":20, "Investing":0                                             // Savings / Investing (minimums)
 };
 
 const SEED = [];
@@ -545,7 +546,7 @@ function renderDash(){
   document.getElementById("dashSub").textContent = periodLabel();
   document.getElementById("emptyHint").style.display = (DB.txns && DB.txns.length===0) ? "block" : "none";
   const tx = txInPeriod();
-  let income=0, saved=0;
+  let income=0, saved=0, wagesIn=0, otherIn=0;
   const byCat={}; CATS.forEach(c=>byCat[c]=0);
   tx.forEach(t=>{
     if(!(t.category in byCat)) byCat[t.category]=0;
@@ -553,7 +554,7 @@ function renderDash(){
     // ONLY positive amounts in an income category (Wages) count as income.
     // A positive amount in any other category is a refund — it just offsets that
     // category's spending (handled below via byCat) and never inflates income.
-    if(t.amount>0 && INCOME_CATS.includes(t.category)) income+=t.amount;
+    if(t.amount>0 && INCOME_CATS.includes(t.category)){ income+=t.amount; if(t.category==="Wages") wagesIn+=t.amount; else otherIn+=t.amount; }
     if(t.category===SAVINGS_CAT && t.amount<0) saved+=-t.amount;
   });
   // categories: spending ones (exclude pure income cat Wages)
@@ -583,11 +584,15 @@ function renderDash(){
   else if(PERIOD.key==="yearview") targetBase = monthlyIncome*12;
   else if(PERIOD.key==="all")      targetBase = income>0 ? income : dailyRate*periodDays();
   else                             targetBase = dailyRate*periodDays();
-  if(!(targetBase>0)) targetBase = income;   // fallback when no regular income is set
-
-  // For full-income timeframes (This month, Year to date, Year overview) the Income
-  // and Left over tiles reflect the full income basis, so they match the allocation bar.
   const fullBasis = (PERIOD.key==="month"||PERIOD.key==="ytd"||PERIOD.key==="yearview");
+  // Greater-of: on the full-income timeframes use the higher of your configured income
+  // and the wages you've actually logged (captures bonuses), PLUS any Other Income
+  // (gifts / one-off cash) added on top. So a normal wage is absorbed (no double-count),
+  // a salary bonus lifts the figure, and a logged gift adds to it.
+  if(fullBasis) targetBase = Math.max(targetBase, wagesIn) + otherIn;
+  if(!(targetBase>0)) targetBase = income;   // fallback when nothing is set or logged
+
+  // The Income + Left over tiles reflect that full basis so they match the allocation bar.
   if(fullBasis && targetBase>0){
     const shownIncome = targetBase;
     const net2 = shownIncome - spend;
@@ -613,22 +618,24 @@ function renderDash(){
   else list.innerHTML = data.map(d=>{
     const pct = targetBase>0 ? (d.net/targetBase*100) : 0;
     const ratio = d.target>0 ? d.net/d.target : 0;
-    const isSav = d.c===SAVINGS_CAT;
+    const isSav = FLOOR_CATS.indexOf(d.c)>=0;
     let flag, fcls, fillW, fillCol;
     if(isSav){
-      // Savings target is a MINIMUM to reach — there is no maximum; exceeding it is good.
-      if(d.target<=0){ flag="saved"; fcls="ok"; }
-      else if(ratio>=1){ flag="goal met"+(d.net>d.target?" · +"+gbp0(d.net-d.target):""); fcls="ok"; }
-      else { flag=gbp0(d.target-d.net)+" to go"; fcls="near"; }
+      // Floor categories (Savings, Investing): the target is an optional MINIMUM.
+      // The bar is ALWAYS green — it never turns orange or red for being under.
+      if(d.target<=0){ flag="saved"; }
+      else if(ratio>=1){ flag="goal met"+(d.net>d.target?" · +"+gbp0(d.net-d.target):""); }
+      else { flag=gbp0(d.target-d.net)+" to go"; }
+      fcls="ok";
       fillW=Math.min(100, d.target>0?ratio*100:(d.net>0?100:0));
-      fillCol = ratio>=1?"var(--green)":"var(--orange)";
+      fillCol="var(--green)";
     } else {
       if(d.target<=0){ flag="no target"; fcls="ok"; }
       else if(ratio>1){ flag="cut back · "+gbp0(d.net-d.target)+" over"; fcls="over"; }
       else if(ratio>0.85){ flag="near limit"; fcls="near"; }
       else { flag="on track"; fcls="ok"; }
       fillW=Math.min(100, d.target>0?ratio*100:(d.net>0?100:0));
-      fillCol = ratio>1?"var(--red)":(ratio>0.85?"var(--orange)":"var(--green)");
+      fillCol = ratio>1?"var(--red)":"var(--green)";
     }
     return `<div class="cat" onclick="openHistory('${d.c.replace(/'/g,"\\'")}')" style="cursor:pointer">
       <div class="top">
@@ -640,7 +647,7 @@ function renderDash(){
         ${d.target>0?`<div class="target-mark" style="left:${Math.min(100, 100*d.target/Math.max(d.net,d.target))}%"></div>`:""}
       </div>
       <div class="meta">
-        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(d.c===SAVINGS_CAT?" · min ":" · target ")+gbp0(d.target):""}${(d.c!==SAVINGS_CAT && d.target>0 && d.net<d.target)?" · "+gbp0(d.target-d.net)+" left":""}</span>
+        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(FLOOR_CATS.indexOf(d.c)>=0?" · min ":" · target ")+gbp0(d.target):""}${(FLOOR_CATS.indexOf(d.c)<0 && d.target>0 && d.net<d.target)?" · "+gbp0(d.target-d.net)+" left":""}</span>
         <span class="flag ${fcls}">${flag}</span>
       </div>
     </div>`;
@@ -652,7 +659,7 @@ function renderDash(){
     const remPct = remaining/targetBase*100;
     let col, label, shown, w;
     if(remaining < 0){ col="var(--red)"; w=100; label="Overspent by "+gbp0(-remaining); shown="-"+gbp0(-remaining); }
-    else { col = remPct>25?"var(--green)":"var(--orange)"; w=Math.max(0,Math.min(100,remPct)); label=gbp0(remaining)+" still to allocate"; shown=gbp0(remaining); }
+    else { col = "var(--green)"; w=Math.max(0,Math.min(100,remPct)); label=gbp0(remaining)+" still to allocate"; shown=gbp0(remaining); }
     const html = `<div class="cat alloc">
       <div class="top">
         <span class="name"><span class="dot" style="background:${col}"></span>Left to allocate</span>
@@ -703,7 +710,9 @@ function addTx(){
   const signed = FLOW==="in"? amt : -amt;
   DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,6), date, desc:desc||cat, amount:signed, category:cat, byId:CURRENT?CURRENT.id:null, byName:curName(), priv:document.getElementById("aPriv").checked});
   if(document.getElementById("aRec").checked){
-    DB.recurring.push({id:"r"+Date.now()+Math.random().toString(36).slice(2,6), desc:desc||cat, amount:amt, flow:FLOW, category:cat, freq:document.getElementById("aFreq").value, anchor:date});
+    const rid="r"+Date.now()+Math.random().toString(36).slice(2,6);
+    DB.recurring.push({id:rid, desc:desc||cat, amount:amt, flow:FLOW, category:cat, freq:document.getElementById("aFreq").value, anchor:date});
+    DB.resolved[rid+"|"+ymd(parse(date))]="confirmed";   // the entry just added IS the first occurrence — don't prompt for it again; next one appears next period
   }
   save();
   document.getElementById("aAmount").value=""; document.getElementById("aDesc").value="";
