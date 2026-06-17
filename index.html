@@ -233,25 +233,23 @@ canvas{max-width:100%;}
   <div class="page" id="page-set">
     <h1>Settings</h1>
     <div class="card">
-      <h2 style="margin-top:2px">Budget targets (50 / 30 / 20)</h2>
-      <p class="note">Targets are a % of your income, suggested using the classic Needs&nbsp;50% · Wants&nbsp;30% · Savings&nbsp;20% rule. Edit any value — the dashboard flags categories you're over on.</p>
-      <div id="targetCfg" style="margin-top:10px"></div>
-      <p class="tiny muted" id="targetSum" style="margin-top:8px"></p>
-      <button class="btn sec" style="margin-top:8px" onclick="resetTargets()">Reset to 50/30/20 defaults</button>
+      <h2 style="margin-top:2px">Your monthly income</h2>
+      <p class="note">Your normal monthly take-home pay. The dashboard shows the greater of this and the income you've actually logged (so bonuses and gifts logged as income are reflected), and measures each category's % against it.</p>
+      <div class="field" style="margin-top:8px"><label>Monthly take-home (£)</label><input type="number" id="regAmount" inputmode="decimal" onchange="saveRegIncome()"></div>
+      <p class="tiny muted" id="regEquiv" style="margin-top:4px"></p>
     </div>
     <div class="card">
-      <h2 style="margin-top:2px">Your regular income</h2>
-      <p class="note">Set your normal take-home pay and how often you're paid. Category percentages are always measured against this income, scaled to the timeframe you're viewing — so a "no-payday" week no longer looks terrible. The Income tile still shows what you actually received.</p>
-      <div class="row" style="margin-top:10px">
-        <div><label>Take-home amount (£)</label><input type="number" id="regAmount" inputmode="decimal" onchange="saveRegIncome()"></div>
-        <div><label>Paid</label><select id="regFreq" onchange="saveRegIncome()">
-          <option value="weekly">Weekly</option>
-          <option value="fortnightly">Every 2 weeks</option>
-          <option value="monthly">Monthly</option>
-          <option value="annually">Annually</option>
-        </select></div>
+      <h2 style="margin-top:2px">Categories &amp; budgets</h2>
+      <p class="note">Set a £ amount for each category. Needs &amp; Wants are spending limits (the bar turns red if you go over); Savings are minimum goals (bar stays green). Disable a category to hide it from the dashboard and pie chart — its past entries are kept and you can re-enable it any time.</p>
+      <div id="catCfg" style="margin-top:6px"></div>
+      <div style="margin-top:12px">
+        <label>Add a category</label>
+        <div class="row">
+          <div style="flex:2"><input id="newCatName" placeholder="Category name"></div>
+          <div><select id="newCatGroup"><option>Needs</option><option>Wants</option><option>Savings</option></select></div>
+        </div>
+        <button class="btn sec" style="margin-top:8px" onclick="addCat()">Add category</button>
       </div>
-      <p class="tiny muted" id="regEquiv" style="margin-top:8px"></p>
     </div>
     <div class="card" id="usersCard">
       <h2 style="margin-top:2px">Users &amp; sign-in</h2>
@@ -378,10 +376,23 @@ canvas{max-width:100%;}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 /* ============================================================= DATA */
-const CATS = ["Wages","Other Income","Important","Groceries","Food & Drink","Transport","Discretionary","Holidays","Savings","Investing"];
-const INCOME_CATS = ["Wages","Other Income"];  // treated as income (Other Income = gifts / one-off cash)
-const SAVINGS_CAT = "Savings";
-const FLOOR_CATS = ["Savings","Investing"];   // minimum-target cats; bars always green
+const INCOME_CATS = ["Wages","Other Income"];          // income, not budget categories
+const INCOME_COLORS = {"Wages":"#10b981","Other Income":"#34d399"};
+const GROUPS = ["Needs","Wants","Savings"];            // 'Savings' group = floor (minimum) categories
+const PALETTE = ["#3b82f6","#22c55e","#f59e0b","#8b5cf6","#ec4899","#ef4444","#06b6d4","#14b8a6","#a3e635","#38bdf8","#fb7185","#f97316","#84cc16","#2dd4bf","#c084fc","#fbbf24","#60a5fa","#4ade80"];
+const DEFAULT_CATS = [
+  ["Needs","Mortgage"],["Needs","Groceries"],["Needs","Car Repayment"],["Needs","Sky"],["Needs","Life Insurance"],["Needs","Transport"],
+  ["Wants","Food & Drink"],["Wants","Phone"],["Wants","Subscriptions"],["Wants","Discretionary"],
+  ["Savings","Savings"],["Savings","Investments"]
+];
+function defaultCategories(){ return DEFAULT_CATS.map((g,i)=>({id:"c"+i, name:g[1], group:g[0], amount:0, enabled:true, color:PALETTE[i%PALETTE.length]})); }
+function allCats(){ return DB.categories||[]; }
+function activeCats(){ return allCats().filter(c=>c.enabled!==false); }
+function catByName(n){ return allCats().find(c=>c.name===n); }
+function catColor(n){ const c=catByName(n); return c?c.color:(INCOME_COLORS[n]||"#64748b"); }
+function isFloorName(n){ const c=catByName(n); return !!c && c.group==="Savings"; }
+function catHasData(n){ return (DB.txns||[]).some(t=>t.category===n) || (DB.recurring||[]).some(r=>r.category===n); }
+function nextColor(){ const used=allCats().map(c=>c.color); return PALETTE.find(x=>used.indexOf(x)<0) || PALETTE[allCats().length%PALETTE.length]; }
 // Recurring frequencies
 const FREQS = [
   {key:"weekly",     label:"Weekly"},
@@ -392,16 +403,7 @@ const FREQS = [
   {key:"annually",   label:"Annually"}
 ];
 const FREQ_LABEL = {weekly:"Weekly",fortnightly:"Every 2 weeks",monthly:"Monthly (same date)",monthly30:"Monthly (30 days)",quarterly:"Every 3 months",annually:"Annually"};
-const COLORS = {
-  "Wages":"#10b981","Other Income":"#34d399","Important":"#3b82f6","Groceries":"#22c55e","Food & Drink":"#f59e0b",
-  "Transport":"#8b5cf6","Discretionary":"#ec4899","Holidays":"#14b8a6","Savings":"#a3e635","Investing":"#38bdf8"
-};
-// 50/30/20 default targets as % of income
-const DEFAULT_TARGETS = {
-  "Important":30, "Groceries":10, "Transport":5,                          // Needs
-  "Food & Drink":8, "Discretionary":17, "Holidays":5,                     // Wants
-  "Savings":20, "Investing":0                                             // Savings / Investing (minimums)
-};
+// category colours and £ budgets now live per-category in DB.categories (see helpers above)
 
 const SEED = [];
 const SEED_REC = [];
@@ -418,14 +420,13 @@ function load(){
       txns: SEED.map((t,i)=>({id:"s"+i, date:t.date, desc:t.desc, amount:t.amount, category:t.category})),
       recurring: SEED_REC.map((r,i)=>({id:"r"+i, ...r, start:"2026-06"})),
       resolved: {},        // key templateId|YYYY-MM-DD -> "confirmed"|"rejected"
-      targets: {...DEFAULT_TARGETS},
+      categories: defaultCategories(),
       baseIncome: 0,
       regularIncome: {amount:0, freq:"monthly"},
       seeded:true
     };
     save();
   }
-  if(!DB.targets) DB.targets={...DEFAULT_TARGETS};
   if(!DB.resolved) DB.resolved={};
   if(!DB.baseIncome) DB.baseIncome=0;
   // migrate: regular income (amount + pay frequency) for stable percentages
@@ -450,6 +451,22 @@ function load(){
     if(found) DB.targets["Discretionary"]=sum;
     delete DB.targets["Credit Card"];   // category removed
   }
+  // migrate: dynamic category list. 'Investing' -> 'Investments'; build defaults; keep any used category.
+  (DB.txns||[]).forEach(t=>{ if(t.category==="Investing") t.category="Investments"; });
+  (DB.recurring||[]).forEach(r=>{ if(r.category==="Investing") r.category="Investments"; });
+  if(!Array.isArray(DB.categories) || DB.categories.length===0) DB.categories=defaultCategories();
+  (function(){
+    const present={}; DB.categories.forEach(c=>present[c.name.toLowerCase()]=true);
+    const grp = n => (n==="Important"?"Needs":"Wants");
+    (DB.txns||[]).concat(DB.recurring||[]).forEach(x=>{
+      const n=x.category;
+      if(n && INCOME_CATS.indexOf(n)<0 && !present[n.toLowerCase()]){
+        present[n.toLowerCase()]=true;
+        DB.categories.push({id:"c"+Date.now()+Math.random().toString(36).slice(2,5), name:n, group:grp(n), amount:0, enabled:true, color:nextColor()});
+      }
+    });
+  })();
+  if(DB.regularIncome) DB.regularIncome.freq="monthly";   // wages are monthly only now
   if(!Array.isArray(DB.users)) DB.users=[];
   save();   // persist migrations so renamed categories are durable
 }
@@ -547,7 +564,7 @@ function renderDash(){
   document.getElementById("emptyHint").style.display = (DB.txns && DB.txns.length===0) ? "block" : "none";
   const tx = txInPeriod();
   let income=0, saved=0, wagesIn=0, otherIn=0;
-  const byCat={}; CATS.forEach(c=>byCat[c]=0);
+  const byCat={};
   tx.forEach(t=>{
     if(!(t.category in byCat)) byCat[t.category]=0;
     byCat[t.category]+=t.amount;
@@ -555,10 +572,10 @@ function renderDash(){
     // A positive amount in any other category is a refund — it just offsets that
     // category's spending (handled below via byCat) and never inflates income.
     if(t.amount>0 && INCOME_CATS.includes(t.category)){ income+=t.amount; if(t.category==="Wages") wagesIn+=t.amount; else otherIn+=t.amount; }
-    if(t.category===SAVINGS_CAT && t.amount<0) saved+=-t.amount;
+    if(isFloorName(t.category) && t.amount<0) saved+=-t.amount;
   });
   // categories: spending ones (exclude pure income cat Wages)
-  const spendCats = CATS.filter(c=>!INCOME_CATS.includes(c));
+  const spendCats = activeCats().map(c=>c.name);
   // spend = NET outflow per spending category (refunds reduce it), summed
   let spend=0;
   spendCats.forEach(c=>{ const net=-(byCat[c]||0); if(net>0) spend+=net; });
@@ -604,7 +621,8 @@ function renderDash(){
     const out = (byCat[c]||0)<0 ? -byCat[c] : 0;
     const inflow = (byCat[c]||0)>0 ? byCat[c] : 0;
     const net = out - inflow;
-    const target = (DB.targets[c]||0)/100 * targetBase;
+    const cObj = catByName(c);
+    const target = cObj ? (+cObj.amount||0) : 0;
     return {c, out, inflow, net:Math.max(net,0), target};
   }).filter(d=>d.out>0 || d.target>0).sort((a,b)=>b.net-a.net);
 
@@ -618,7 +636,7 @@ function renderDash(){
   else list.innerHTML = data.map(d=>{
     const pct = targetBase>0 ? (d.net/targetBase*100) : 0;
     const ratio = d.target>0 ? d.net/d.target : 0;
-    const isSav = FLOOR_CATS.indexOf(d.c)>=0;
+    const isSav = isFloorName(d.c);
     let flag, fcls, fillW, fillCol;
     if(isSav){
       // Floor categories (Savings, Investing): the target is an optional MINIMUM.
@@ -639,7 +657,7 @@ function renderDash(){
     }
     return `<div class="cat" onclick="openHistory('${d.c.replace(/'/g,"\\'")}')" style="cursor:pointer">
       <div class="top">
-        <span class="name"><span class="dot" style="background:${COLORS[d.c]||'#64748b'}"></span>${d.c}</span>
+        <span class="name"><span class="dot" style="background:${catColor(d.c)}"></span>${d.c}</span>
         <span class="amt">${gbp0(d.net)}</span>
       </div>
       <div class="barwrap">
@@ -647,7 +665,7 @@ function renderDash(){
         ${d.target>0?`<div class="target-mark" style="left:${Math.min(100, 100*d.target/Math.max(d.net,d.target))}%"></div>`:""}
       </div>
       <div class="meta">
-        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(FLOOR_CATS.indexOf(d.c)>=0?" · min ":" · target ")+gbp0(d.target):""}${(FLOOR_CATS.indexOf(d.c)<0 && d.target>0 && d.net<d.target)?" · "+gbp0(d.target-d.net)+" left":""}</span>
+        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(isFloorName(d.c)?" · min ":" · target ")+gbp0(d.target):""}${(!isFloorName(d.c) && d.target>0 && d.net<d.target)?" · "+gbp0(d.target-d.net)+" left":""}</span>
         <span class="flag ${fcls}">${flag}</span>
       </div>
     </div>`;
@@ -676,11 +694,11 @@ function drawChart(data){
   const ctx=document.getElementById("chart");
   const card=document.getElementById("chartCard");
   if(data.length===0 || typeof Chart==="undefined"){ card.style.display="none"; return; } card.style.display="block";
-  const labels=data.map(d=>d.c), vals=data.map(d=>Math.round(d.net)), cols=data.map(d=>COLORS[d.c]||'#64748b');
+  const labels=data.map(d=>d.c), vals=data.map(d=>Math.round(d.net)), cols=data.map(d=>catColor(d.c));
   if(chart) chart.destroy();
   chart=new Chart(ctx,{type:"doughnut",data:{labels,datasets:[{data:vals,backgroundColor:cols,borderColor:"#1e293b",borderWidth:2}]},
     options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>" "+c.label+": £"+c.parsed.toLocaleString()}}},cutout:"62%"}});
-  document.getElementById("legend").innerHTML=data.map(d=>`<div><span class="dot" style="background:${COLORS[d.c]||'#64748b'}"></span>${d.c} ${gbp0(d.net)}</div>`).join("");
+  document.getElementById("legend").innerHTML=data.map(d=>`<div><span class="dot" style="background:${catColor(d.c)}"></span>${d.c} ${gbp0(d.net)}</div>`).join("");
 }
 
 /* period selector UI */
@@ -697,9 +715,15 @@ function setFlow(f){ FLOW=f; document.querySelectorAll("#flowSeg button").forEac
   // smart default category
   document.getElementById("aCat").value = f==="in"?"Wages":"Food & Drink";
 }
-function fillCatSelect(sel,withAll){
-  const opts = (withAll?['<option value="">All types</option>']:[]).concat(CATS.map(c=>`<option>${c}</option>`));
+function fillCatSelect(sel,withAll,includeDisabled){
+  const cs = includeDisabled ? allCats() : activeCats();
+  const names = INCOME_CATS.concat(cs.map(c=>c.name));
+  const opts = (withAll?['<option value="">All types</option>']:[]).concat(names.map(c=>`<option>${c}</option>`));
   sel.innerHTML=opts.join("");
+}
+function syncCatSelects(){
+  const set=(id,wa,inc)=>{ const el=document.getElementById(id); if(!el) return; const v=el.value; fillCatSelect(el,wa,inc); if([...el.options].some(o=>o.value===v)) el.value=v; };
+  set("aCat",false,false); set("eCat",false,true); set("tCat",false,true); set("txFilter",true,true);
 }
 function addTx(){
   const amt=parseFloat(document.getElementById("aAmount").value);
@@ -810,8 +834,8 @@ function saveRecEdit(){
 
 /* ============================================================= TX LIST */
 function renderTxFilter(){
-  const sel=document.getElementById("txFilter");
-  if(sel.options.length===0) fillCatSelect(sel,true);
+  const sel=document.getElementById("txFilter"); const cur=sel.value;
+  fillCatSelect(sel,true,true); sel.value=cur;
   const ps=document.getElementById("txPeriod");
   if(ps.options.length===0) ps.innerHTML=[["all","All dates"],["month","This month"],["lastmonth","Last month"],["custom","Custom\u2026"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
 }
@@ -908,35 +932,52 @@ function saveTxEdit(){
 
 /* ============================================================= SETTINGS */
 function renderSettings(){
-  const cfg=document.getElementById("targetCfg");
-  const spendCats=CATS.filter(c=>!INCOME_CATS.includes(c));
-  cfg.innerHTML=spendCats.map(c=>{
-    return `<div class="tcfg"><span class="dot" style="background:${COLORS[c]||'#64748b'}"></span><label>${c}</label><input type="number" value="${DB.targets[c]||0}" onchange="setTarget('${c}',this.value)"><span class="muted tiny">%</span></div>`;
-  }).join("");
-  updTargetSum();
-  document.getElementById("regAmount").value=DB.regularIncome.amount;
-  document.getElementById("regFreq").value=DB.regularIncome.freq;
+  renderCatCfg();
+  document.getElementById("regAmount").value=DB.regularIncome.amount||"";
   updRegEquiv();
   renderUsers();
 }
+function renderCatCfg(){
+  let html="";
+  GROUPS.forEach(g=>{
+    const list=allCats().filter(c=>c.group===g);
+    html+=`<div class="tiny muted" style="margin:12px 0 2px;text-transform:uppercase;letter-spacing:.05em">${g}${g==="Savings"?" — minimum goals":""}</div>`;
+    if(list.length===0) html+=`<div class="tiny muted" style="padding:3px 0">No categories.</div>`;
+    list.forEach(c=>{
+      const off=c.enabled===false;
+      html+=`<div class="tcfg" style="${off?'opacity:.45':''}">
+        <span class="dot" style="background:${c.color}"></span>
+        <label>${c.name}</label>
+        <span class="muted tiny">£</span>
+        <input type="number" inputmode="decimal" style="width:72px" value="${+c.amount||0}" ${off?'disabled':''} onchange="setCatAmount('${c.id}',this.value)">
+        <button class="btn sec tiny" style="width:auto;padding:5px 8px" onclick="toggleCat('${c.id}')">${off?'Enable':'Disable'}</button>
+        ${catHasData(c.name)?'':`<button class="btn danger tiny" style="width:auto;padding:5px 8px" onclick="delCat('${c.id}')">✕</button>`}
+      </div>`;
+    });
+  });
+  document.getElementById("catCfg").innerHTML=html;
+}
+function setCatAmount(id,v){ const c=allCats().find(x=>x.id===id); if(c){ c.amount=parseFloat(v)||0; save(); renderDash(); } }
+function toggleCat(id){ const c=allCats().find(x=>x.id===id); if(c){ c.enabled=(c.enabled===false); save(); syncCatSelects(); renderCatCfg(); renderDash(); } }
+function delCat(id){ const c=allCats().find(x=>x.id===id); if(!c) return; if(catHasData(c.name)){ toast("Has entries — disable instead"); return; } if(!confirm("Delete category "+c.name+"?")) return; DB.categories=DB.categories.filter(x=>x.id!==id); save(); syncCatSelects(); renderCatCfg(); renderDash(); }
+function addCat(){
+  const name=document.getElementById("newCatName").value.trim();
+  const group=document.getElementById("newCatGroup").value;
+  if(!name){ toast("Enter a name"); return; }
+  if(catByName(name) || INCOME_CATS.indexOf(name)>=0){ toast("That name already exists"); return; }
+  DB.categories.push({id:"c"+Date.now()+Math.random().toString(36).slice(2,5), name, group, amount:0, enabled:true, color:nextColor()});
+  save(); document.getElementById("newCatName").value="";
+  syncCatSelects(); renderCatCfg(); renderDash(); toast("Category added ✓");
+}
 function updRegEquiv(){
-  const d=regDaily();
-  const mo=d*365.25/12, yr=d*365.25;
-  document.getElementById("regEquiv").textContent = d>0
-    ? `≈ ${gbp0(mo)}/month · ${gbp0(yr)}/year`
-    : "Set this so your percentages stay accurate.";
+  const a=parseFloat(DB.regularIncome.amount)||0;
+  document.getElementById("regEquiv").textContent = a>0 ? `≈ ${gbp0(a*12)}/year` : "Set your monthly take-home so the dashboard %s are accurate.";
 }
 function saveRegIncome(){
-  DB.regularIncome={amount:parseFloat(document.getElementById("regAmount").value)||0, freq:document.getElementById("regFreq").value};
-  DB.baseIncome=Math.round(regDaily()*365.25/12);   // keep legacy field roughly in sync
+  DB.regularIncome={amount:parseFloat(document.getElementById("regAmount").value)||0, freq:"monthly"};
+  DB.baseIncome=Math.round(parseFloat(DB.regularIncome.amount)||0);
   save(); updRegEquiv(); renderDash();
 }
-function setTarget(c,v){ DB.targets[c]=parseFloat(v)||0; save(); updTargetSum(); }
-function updTargetSum(){
-  const sum=Object.values(DB.targets).reduce((a,b)=>a+(+b||0),0);
-  document.getElementById("targetSum").textContent=`Targets total ${sum.toFixed(0)}% of income`+(sum>100?` — that's over 100%, you may want to trim.`:sum<100?` — ${(100-sum).toFixed(0)}% unallocated.`:` — perfectly balanced.`);
-}
-function resetTargets(){ DB.targets={...DEFAULT_TARGETS}; save(); renderSettings(); toast("Reset to 50/30/20"); }
 function exportData(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="moneytracker-backup-"+todayISO()+".json"; a.click();
@@ -1078,9 +1119,7 @@ function saveUser(){
 load();
 restoreSession();   // stay signed in across refresh / relaunch
 document.getElementById("aDate").value=todayISO();
-fillCatSelect(document.getElementById("aCat"),false);
-fillCatSelect(document.getElementById("eCat"),false);
-fillCatSelect(document.getElementById("tCat"),false);
+syncCatSelects();
 const freqOpts=FREQS.map(f=>`<option value="${f.key}"${f.key==="monthly"?" selected":""}>${f.label}</option>`).join("");
 document.getElementById("aFreq").innerHTML=freqOpts;
 document.getElementById("eFreq").innerHTML=freqOpts;
