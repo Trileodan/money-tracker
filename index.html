@@ -452,17 +452,22 @@ function load(){
     delete DB.targets["Credit Card"];   // category removed
   }
   // migrate: dynamic category list. 'Investing' -> 'Investments'; build defaults; keep any used category.
+  const REMOVED=["important","credit card"];   // removed categories (entries stay in History)
   (DB.txns||[]).forEach(t=>{ if(t.category==="Investing") t.category="Investments"; });
   (DB.recurring||[]).forEach(r=>{ if(r.category==="Investing") r.category="Investments"; });
   if(!Array.isArray(DB.categories) || DB.categories.length===0) DB.categories=defaultCategories();
+  // one-time removal of Important / Credit Card (so a user can still re-add them later if they want)
+  if(!DB.removedImportantCC){
+    DB.categories = DB.categories.filter(c=>REMOVED.indexOf(c.name.toLowerCase())<0);
+    DB.removedImportantCC = true;
+  }
   (function(){
     const present={}; DB.categories.forEach(c=>present[c.name.toLowerCase()]=true);
-    const grp = n => (n==="Important"?"Needs":"Wants");
     (DB.txns||[]).concat(DB.recurring||[]).forEach(x=>{
       const n=x.category;
-      if(n && INCOME_CATS.indexOf(n)<0 && !present[n.toLowerCase()]){
+      if(n && INCOME_CATS.indexOf(n)<0 && REMOVED.indexOf(n.toLowerCase())<0 && !present[n.toLowerCase()]){
         present[n.toLowerCase()]=true;
-        DB.categories.push({id:"c"+Date.now()+Math.random().toString(36).slice(2,5), name:n, group:grp(n), amount:0, enabled:true, color:nextColor()});
+        DB.categories.push({id:"c"+Date.now()+Math.random().toString(36).slice(2,5), name:n, group:"Wants", amount:0, enabled:true, color:nextColor()});
       }
     });
   })();
