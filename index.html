@@ -85,6 +85,17 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transf
 .reject{background:#3a1620;color:var(--red);}
 .recbtns{display:flex;gap:6px;margin-top:6px;justify-content:flex-end;}
 .recbtns button{width:auto;padding:5px 11px;font-size:12px;}
+#pieToggle button.on{background:var(--accent);color:#06281d;}
+.catrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:9px 0;border-bottom:1px solid var(--line);}
+.catrow:last-child{border-bottom:none;}
+.catrow .cname{flex:1;min-width:96px;font-size:14px;display:flex;align-items:center;gap:8px;}
+.catrow input{width:74px;flex:none;text-align:right;padding:8px;}
+.catrow .pct{font-size:11px;color:var(--muted);min-width:30px;text-align:right;}
+.catrow button{width:auto;padding:5px 9px;font-size:12px;}
+.orphanrow{background:#2a230f;border:1px solid var(--amber);border-radius:12px;padding:10px 12px;margin-bottom:8px;}
+.orphanhdr{font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.04em;margin:2px 0 8px;}
+.realloc{margin-top:8px;}
+.realloc select{padding:9px;}
 
 .badge{position:absolute;top:4px;right:50%;transform:translateX(20px);background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
 
@@ -158,6 +169,10 @@ canvas{max-width:100%;}
 
     <div class="card" id="chartCard">
       <h2 style="margin-top:2px">Where it goes</h2>
+      <div class="seg" id="pieToggle" style="margin-bottom:12px">
+        <button class="on" data-pie="cat" onclick="setPie('cat')">Categories</button>
+        <button data-pie="group" onclick="setPie('group')">Needs / Wants / Savings</button>
+      </div>
       <canvas id="chart" height="200"></canvas>
       <div class="legend" id="legend"></div>
     </div>
@@ -241,6 +256,7 @@ canvas{max-width:100%;}
     <div class="card">
       <h2 style="margin-top:2px">Categories &amp; budgets</h2>
       <p class="note">Set a £ amount for each category. Needs &amp; Wants are spending limits (the bar turns red if you go over); Savings are minimum goals (bar stays green). Disable a category to hide it from the dashboard and pie chart — its past entries are kept and you can re-enable it any time.</p>
+      <p class="tiny" id="allocSummary" style="margin:8px 0 2px;font-weight:600"></p>
       <div id="catCfg" style="margin-top:6px"></div>
       <div style="margin-top:12px">
         <label>Add a category</label>
@@ -288,7 +304,7 @@ canvas{max-width:100%;}
 <!-- TAB BAR -->
 <div class="tabbar" id="tabbar">
   <button class="on" data-tab="dash" onclick="go('dash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h8V3H3zM13 21h8V8h-8zM3 21h8v-5H3z"/></svg>Dashboard</button>
-  <button data-tab="tx" onclick="go('tx')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History</button>
+  <button data-tab="tx" onclick="go('tx')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History<span class="badge" id="orphanBadge" style="display:none">0</span></button>
   <button data-tab="add" onclick="go('add')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add</button>
   <button data-tab="rec" onclick="go('rec')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M21 4v4h-4M3 20v-4h4"/></svg>Monthly<span class="badge" id="pendBadge" style="display:none">0</span></button>
   <button data-tab="set" onclick="go('set')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
@@ -312,6 +328,19 @@ canvas{max-width:100%;}
     <div class="row">
       <button class="btn sec" onclick="closeRecModal()">Cancel</button>
       <button class="btn" onclick="saveRecEdit()">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT CATEGORY MODAL -->
+<div class="modal" id="catModal">
+  <div class="sheet">
+    <h2 style="margin-top:0">Edit category</h2>
+    <div class="field"><label>Name</label><input id="ecName"></div>
+    <div class="field"><label>Group</label><select id="ecGroup"><option>Needs</option><option>Wants</option><option>Savings</option></select></div>
+    <div class="row">
+      <button class="btn sec" onclick="closeCatModal()">Cancel</button>
+      <button class="btn" onclick="saveCatEdit()">Save</button>
     </div>
   </div>
 </div>
@@ -381,7 +410,7 @@ const INCOME_COLORS = {"Wages":"#10b981","Other Income":"#34d399"};
 const GROUPS = ["Needs","Wants","Savings"];            // 'Savings' group = floor (minimum) categories
 const PALETTE = ["#3b82f6","#22c55e","#f59e0b","#8b5cf6","#ec4899","#ef4444","#06b6d4","#14b8a6","#a3e635","#38bdf8","#fb7185","#f97316","#84cc16","#2dd4bf","#c084fc","#fbbf24","#60a5fa","#4ade80"];
 const DEFAULT_CATS = [
-  ["Needs","Mortgage"],["Needs","Groceries"],["Needs","Car Repayment"],["Needs","Sky"],["Needs","Life Insurance"],["Needs","Transport"],
+  ["Needs","Mortgage"],["Needs","Groceries"],["Needs","Car Repayment"],["Needs","TV"],["Needs","Life Insurance"],["Needs","Transport"],
   ["Wants","Food & Drink"],["Wants","Phone"],["Wants","Subscriptions"],["Wants","Discretionary"],
   ["Savings","Savings"],["Savings","Investments"]
 ];
@@ -391,6 +420,7 @@ function activeCats(){ return allCats().filter(c=>c.enabled!==false); }
 function catByName(n){ return allCats().find(c=>c.name===n); }
 function catColor(n){ const c=catByName(n); return c?c.color:(INCOME_COLORS[n]||"#64748b"); }
 function isFloorName(n){ const c=catByName(n); return !!c && c.group==="Savings"; }
+function isOrphan(t){ return !!t.category && INCOME_CATS.indexOf(t.category)<0 && !catByName(t.category); }
 function catHasData(n){ return (DB.txns||[]).some(t=>t.category===n) || (DB.recurring||[]).some(r=>r.category===n); }
 function nextColor(){ const used=allCats().map(c=>c.color); return PALETTE.find(x=>used.indexOf(x)<0) || PALETTE[allCats().length%PALETTE.length]; }
 // Recurring frequencies
@@ -453,8 +483,9 @@ function load(){
   }
   // migrate: dynamic category list. 'Investing' -> 'Investments'; build defaults; keep any used category.
   const REMOVED=["important","credit card"];   // removed categories (entries stay in History)
-  (DB.txns||[]).forEach(t=>{ if(t.category==="Investing") t.category="Investments"; });
-  (DB.recurring||[]).forEach(r=>{ if(r.category==="Investing") r.category="Investments"; });
+  (DB.txns||[]).forEach(t=>{ if(t.category==="Investing") t.category="Investments"; if(t.category==="Sky") t.category="TV"; });
+  (DB.recurring||[]).forEach(r=>{ if(r.category==="Investing") r.category="Investments"; if(r.category==="Sky") r.category="TV"; });
+  (DB.categories||[]).forEach(c=>{ if(c.name==="Sky" && !((DB.categories||[]).some(x=>x.name==="TV"))) c.name="TV"; });
   if(!Array.isArray(DB.categories) || DB.categories.length===0) DB.categories=defaultCategories();
   // one-time removal of Important / Credit Card (so a user can still re-add them later if they want)
   if(!DB.removedImportantCC){
@@ -564,6 +595,8 @@ function txInPeriod(){
 }
 /* ============================================================= RENDER DASHBOARD */
 let chart;
+let PIEMODE="cat";
+const GROUP_COLORS={Needs:"#3b82f6",Wants:"#ec4899",Savings:"#10b981"};
 function renderDash(){
   document.getElementById("dashSub").textContent = periodLabel();
   document.getElementById("emptyHint").style.display = (DB.txns && DB.txns.length===0) ? "block" : "none";
@@ -631,8 +664,15 @@ function renderDash(){
     return {c, out, inflow, net:Math.max(net,0), target};
   }).filter(d=>d.out>0 || d.target>0).sort((a,b)=>b.net-a.net);
 
-  // chart (by net outflow)
-  const chartData = data.filter(d=>d.net>0);
+  // chart — toggles between per-category and Needs/Wants/Savings group breakdown
+  let chartData;
+  if(PIEMODE==="group"){
+    const g={}; GROUPS.forEach(x=>g[x]=0);
+    data.forEach(d=>{ const c=catByName(d.c); if(c && d.net>0) g[c.group]+=d.net; });
+    chartData=GROUPS.map(x=>({label:x, net:g[x], col:GROUP_COLORS[x]})).filter(x=>x.net>0);
+  } else {
+    chartData=data.filter(d=>d.net>0).map(d=>({label:d.c, net:d.net, col:catColor(d.c)}));
+  }
   drawChart(chartData);
 
   // category list
@@ -698,13 +738,15 @@ function renderDash(){
 function drawChart(data){
   const ctx=document.getElementById("chart");
   const card=document.getElementById("chartCard");
-  if(data.length===0 || typeof Chart==="undefined"){ card.style.display="none"; return; } card.style.display="block";
-  const labels=data.map(d=>d.c), vals=data.map(d=>Math.round(d.net)), cols=data.map(d=>catColor(d.c));
+  if(typeof Chart==="undefined"){ card.style.display="none"; return; } card.style.display="block";
+  if(data.length===0){ if(chart){chart.destroy();chart=null;} document.getElementById("legend").innerHTML='<div class="muted tiny">No spending to chart yet.</div>'; return; }
+  const labels=data.map(d=>d.label), vals=data.map(d=>Math.round(d.net)), cols=data.map(d=>d.col);
   if(chart) chart.destroy();
   chart=new Chart(ctx,{type:"doughnut",data:{labels,datasets:[{data:vals,backgroundColor:cols,borderColor:"#1e293b",borderWidth:2}]},
     options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>" "+c.label+": £"+c.parsed.toLocaleString()}}},cutout:"62%"}});
-  document.getElementById("legend").innerHTML=data.map(d=>`<div><span class="dot" style="background:${catColor(d.c)}"></span>${d.c} ${gbp0(d.net)}</div>`).join("");
+  document.getElementById("legend").innerHTML=data.map(d=>`<div><span class="dot" style="background:${d.col}"></span>${d.label} ${gbp0(d.net)}</div>`).join("");
 }
+function setPie(m){ PIEMODE=m; document.querySelectorAll("#pieToggle button").forEach(b=>b.classList.toggle("on",b.dataset.pie===m)); renderDash(); }
 
 /* period selector UI */
 function renderPeriods(){
@@ -880,12 +922,30 @@ function openHistory(cat){
 function renderTx(){
   const f=document.getElementById("txFilter").value;
   const rg=txRange();
-  let tx=[...DB.txns].sort((a,b)=>a.date<b.date?1:-1);
+  const list=document.getElementById("txList");
+  // orphans (entries whose category was deleted) — always shown at the top, awaiting reallocation
+  const orphans=[...DB.txns].filter(isOrphan).sort((a,b)=>a.date<b.date?1:-1);
+  let tx=[...DB.txns].filter(t=>!isOrphan(t)).sort((a,b)=>a.date<b.date?1:-1);
   if(f) tx=tx.filter(t=>t.category===f);
   if(rg) tx=tx.filter(t=>{ const d=parse(t.date); return d>=rg.from && d<=rg.to; });
-  const list=document.getElementById("txList");
-  if(tx.length===0){ list.innerHTML='<div class="empty">No transactions.</div>'; return; }
-  list.innerHTML=tx.map(t=>{
+  let html="";
+  if(orphans.length){
+    const opts='<option value="">Reallocate to…</option>'+activeCats().map(c=>`<option>${c.name}</option>`).join("");
+    html+=`<div class="orphanhdr">⚠ Needs reallocation (${orphans.length})</div>`;
+    html+=orphans.map(t=>{
+      const masked=isMasked(t);
+      const title=masked?"🔒 Private entry":(t.desc||"(no description)");
+      return `<div class="orphanrow">
+        <div class="tx" style="border:none;padding:0">
+          <div class="l"><div class="d">${title}</div><div class="s">${fmtDate(t.date)} · was “${t.category}”${t.byName?" · by "+t.byName:""}</div></div>
+          <div class="r"><div class="a ${t.amount>=0?'pos':'neg'}">${t.amount>=0?'+':'-'}${gbp(t.amount)}</div></div>
+        </div>
+        ${masked?'':`<div class="realloc"><select onchange="reallocate('${t.id}',this.value)">${opts}</select></div>`}
+      </div>`;
+    }).join("");
+  }
+  if(tx.length===0 && orphans.length===0){ list.innerHTML='<div class="empty">No transactions.</div>'; return; }
+  html+=tx.map(t=>{
     const masked=isMasked(t);
     const title = masked ? "🔒 Private entry" : (t.desc||t.category);
     const catLbl = masked ? "Hidden" : t.category;
@@ -902,7 +962,9 @@ function renderTx(){
       <div class="r"><div class="a ${t.amount>=0?'pos':'neg'}">${t.amount>=0?'+':'-'}${gbp(t.amount)}</div>${ctrls}</div>
     </div>`;
   }).join("");
+  list.innerHTML=html;
 }
+function reallocate(id,cat){ if(!cat) return; const t=DB.txns.find(x=>x.id===id); if(!t) return; t.category=cat; t.edById=CURRENT?CURRENT.id:null; t.edByName=curName(); save(); refreshAll(); renderTx(); toast("Reallocated ✓"); }
 function delTx(id){ const t=DB.txns.find(x=>x.id===id); if(t&&isMasked(t)){ toast("This entry is private"); return; } DB.txns=DB.txns.filter(t=>t.id!==id); save(); refreshAll(); toast("Deleted"); }
 
 /* ----- edit a logged transaction ----- */
@@ -943,6 +1005,7 @@ function renderSettings(){
   renderUsers();
 }
 function renderCatCfg(){
+  const income=parseFloat(DB.regularIncome.amount)||0;
   let html="";
   GROUPS.forEach(g=>{
     const list=allCats().filter(c=>c.group===g);
@@ -950,21 +1013,50 @@ function renderCatCfg(){
     if(list.length===0) html+=`<div class="tiny muted" style="padding:3px 0">No categories.</div>`;
     list.forEach(c=>{
       const off=c.enabled===false;
-      html+=`<div class="tcfg" style="${off?'opacity:.45':''}">
-        <span class="dot" style="background:${c.color}"></span>
-        <label>${c.name}</label>
+      const pct=income>0?Math.round((+c.amount||0)/income*100)+"%":"";
+      html+=`<div class="catrow" style="${off?'opacity:.5':''}">
+        <span class="cname"><span class="dot" style="background:${c.color}"></span>${c.name}</span>
         <span class="muted tiny">£</span>
-        <input type="number" inputmode="decimal" style="width:72px" value="${+c.amount||0}" ${off?'disabled':''} onchange="setCatAmount('${c.id}',this.value)">
-        <button class="btn sec tiny" style="width:auto;padding:5px 8px" onclick="toggleCat('${c.id}')">${off?'Enable':'Disable'}</button>
-        ${catHasData(c.name)?'':`<button class="btn danger tiny" style="width:auto;padding:5px 8px" onclick="delCat('${c.id}')">✕</button>`}
+        <input type="number" inputmode="decimal" value="${+c.amount||0}" ${off?'disabled':''} onchange="setCatAmount('${c.id}',this.value)">
+        <span class="pct">${pct}</span>
+        <button class="btn sec" onclick="editCat('${c.id}')">Edit</button>
+        <button class="btn sec" onclick="toggleCat('${c.id}')">${off?'Enable':'Disable'}</button>
+        <button class="btn danger" onclick="delCat('${c.id}')">Delete</button>
       </div>`;
     });
   });
   document.getElementById("catCfg").innerHTML=html;
+  const allocated=activeCats().reduce((a,c)=>a+(+c.amount||0),0);
+  const left=income-allocated;
+  const col=left<0?"var(--red)":"var(--green)";
+  document.getElementById("allocSummary").innerHTML = income>0
+    ? `Allocated ${gbp0(allocated)} of ${gbp0(income)} — <span style="color:${col}">${left>=0?gbp0(left)+" left to allocate":gbp0(-left)+" over your income"}</span>`
+    : "Set your monthly income to see how much is left to allocate.";
 }
-function setCatAmount(id,v){ const c=allCats().find(x=>x.id===id); if(c){ c.amount=parseFloat(v)||0; save(); renderDash(); } }
+let CEDIT=null;
+function editCat(id){ const c=allCats().find(x=>x.id===id); if(!c) return; CEDIT=id; document.getElementById("ecName").value=c.name; document.getElementById("ecGroup").value=c.group; document.getElementById("catModal").classList.add("on"); }
+function closeCatModal(){ document.getElementById("catModal").classList.remove("on"); CEDIT=null; }
+function saveCatEdit(){
+  const c=allCats().find(x=>x.id===CEDIT); if(!c){ closeCatModal(); return; }
+  const name=document.getElementById("ecName").value.trim();
+  const group=document.getElementById("ecGroup").value;
+  if(!name){ toast("Enter a name"); return; }
+  if(name!==c.name && (catByName(name)||INCOME_CATS.indexOf(name)>=0)){ toast("That name already exists"); return; }
+  const old=c.name;
+  if(name!==old){ (DB.txns||[]).forEach(t=>{ if(t.category===old) t.category=name; }); (DB.recurring||[]).forEach(r=>{ if(r.category===old) r.category=name; }); }
+  c.name=name; c.group=group;
+  save(); closeCatModal(); syncCatSelects(); renderCatCfg(); renderDash(); toast("Saved ✓");
+}
+function setCatAmount(id,v){ const c=allCats().find(x=>x.id===id); if(c){ c.amount=parseFloat(v)||0; save(); renderCatCfg(); renderDash(); } }
 function toggleCat(id){ const c=allCats().find(x=>x.id===id); if(c){ c.enabled=(c.enabled===false); save(); syncCatSelects(); renderCatCfg(); renderDash(); } }
-function delCat(id){ const c=allCats().find(x=>x.id===id); if(!c) return; if(catHasData(c.name)){ toast("Has entries — disable instead"); return; } if(!confirm("Delete category "+c.name+"?")) return; DB.categories=DB.categories.filter(x=>x.id!==id); save(); syncCatSelects(); renderCatCfg(); renderDash(); }
+function delCat(id){
+  const c=allCats().find(x=>x.id===id); if(!c) return;
+  const n=(DB.txns||[]).filter(t=>t.category===c.name).length;
+  const msg = n>0 ? "Delete \""+c.name+"\"? Its "+n+" "+(n===1?"entry":"entries")+" will move to the top of History to be reallocated." : "Delete \""+c.name+"\"?";
+  if(!confirm(msg)) return;
+  DB.categories=DB.categories.filter(x=>x.id!==id); save();
+  syncCatSelects(); renderCatCfg(); renderDash(); updOrphanBadge(); toast(n>0?"Deleted — reallocate in History":"Deleted");
+}
 function addCat(){
   const name=document.getElementById("newCatName").value.trim();
   const group=document.getElementById("newCatGroup").value;
@@ -1004,7 +1096,8 @@ function go(tab){
   if(tab==="set") renderSettings();
   window.scrollTo(0,0);
 }
-function refreshAll(){ renderDash(); renderRec(); updPendBadge(); if(document.getElementById("page-tx").classList.contains("on")) renderTx(); }
+function refreshAll(){ renderDash(); renderRec(); updPendBadge(); updOrphanBadge(); if(document.getElementById("page-tx").classList.contains("on")) renderTx(); }
+function updOrphanBadge(){ const n=DB.txns?DB.txns.filter(isOrphan).length:0; const b=document.getElementById("orphanBadge"); if(b){ b.style.display=n>0?"flex":"none"; b.textContent=n; } }
 function updPendBadge(){
   const n=pendingItems().length; const b=document.getElementById("pendBadge");
   b.style.display=n>0?"flex":"none"; b.textContent=n;
