@@ -155,6 +155,12 @@ canvas{max-width:100%;}
       </div>
       <button class="btn sec" style="margin-top:10px" onclick="applyCustom()">Apply range</button>
     </div>
+    <div id="monthlyPick" style="display:none" class="card">
+      <div class="row">
+        <div><label>Month</label><select id="moMonth" onchange="applyMonthly()"></select></div>
+        <div><label>Year</label><select id="moYear" onchange="applyMonthly()"></select></div>
+      </div>
+    </div>
 
     <div class="card" id="emptyHint" style="display:none">
       <h2 style="margin-top:2px">Welcome 👋</h2>
@@ -251,9 +257,18 @@ canvas{max-width:100%;}
     <h1>Settings</h1>
     <div class="card">
       <h2 style="margin-top:2px">Your monthly income</h2>
-      <p class="note">Your normal monthly take-home pay. The dashboard shows the greater of this and the income you've actually logged (so bonuses and gifts logged as income are reflected), and measures each category's % against it.</p>
-      <div class="field" style="margin-top:8px"><label>Monthly take-home (£)</label><input type="number" id="regAmount" inputmode="decimal" onchange="saveRegIncome()"></div>
-      <p class="tiny muted" id="regEquiv" style="margin-top:4px"></p>
+      <p class="note">Set your monthly take-home, dated from when it started. Add a new dated figure whenever you get a pay rise or cut — earlier months keep the figure that applied at the time.</p>
+      <div id="incomeList" style="margin-top:6px"></div>
+      <div style="margin-top:12px">
+        <label>Set income from a month</label>
+        <div class="row">
+          <div><select id="incMonth"></select></div>
+          <div><select id="incYear"></select></div>
+          <div><input type="number" id="incAmount" inputmode="decimal" placeholder="£ amount"></div>
+        </div>
+        <button class="btn sec" style="margin-top:8px" onclick="addIncome()">Save income figure</button>
+      </div>
+      <p class="tiny muted" id="regEquiv" style="margin-top:8px"></p>
     </div>
     <div class="card">
       <h2 style="margin-top:2px">Categories &amp; budgets</h2>
@@ -422,6 +437,16 @@ function activeCats(){ return allCats().filter(c=>c.enabled!==false); }
 function catByName(n){ return allCats().find(c=>c.name===n); }
 function catColor(n){ const c=catByName(n); return c?c.color:(INCOME_COLORS[n]||"#64748b"); }
 function isFloorName(n){ const c=catByName(n); return !!c && c.group==="Savings"; }
+// dated monthly take-home history: pick the figure effective for a given month
+function incomeHist(){ return (DB.incomeHistory||[]).slice().sort((a,b)=>a.date<b.date?-1:1); }
+function incomeForMonth(y,m){
+  const key=y*12+m; let amt=null;
+  incomeHist().forEach(h=>{ const pp=h.date.split("-"); const k=(+pp[0])*12+((+pp[1])-1); if(k<=key) amt=(+h.amount||0); });
+  if(amt===null){ const f=incomeHist()[0]; amt=f?(+f.amount||0):0; }   // months before the first figure use the earliest
+  return amt;
+}
+function incomeForRange(fy,fm,ty,tm){ let s=0,y=fy,m=fm,g=0; while(y*12+m<=ty*12+tm && g++<480){ s+=incomeForMonth(y,m); m++; if(m>11){m=0;y++;} } return s; }
+function currentMonthlyIncome(){ const n=new Date(); return incomeForMonth(n.getFullYear(), n.getMonth()); }
 function isOrphan(t){ return !!t.category && INCOME_CATS.indexOf(t.category)<0 && !catByName(t.category); }
 function catHasData(n){ return (DB.txns||[]).some(t=>t.category===n) || (DB.recurring||[]).some(r=>r.category===n); }
 function nextColor(){ const used=allCats().map(c=>c.color); return PALETTE.find(x=>used.indexOf(x)<0) || PALETTE[allCats().length%PALETTE.length]; }
@@ -505,6 +530,11 @@ function load(){
     });
   })();
   if(DB.regularIncome) DB.regularIncome.freq="monthly";   // wages are monthly only now
+  // migrate: dated income history (one take-home figure per effective month)
+  if(!Array.isArray(DB.incomeHistory)){
+    const a = DB.regularIncome ? (parseFloat(DB.regularIncome.amount)||0) : 0;
+    DB.incomeHistory = a>0 ? [{id:"inc0", date:"2000-01-01", amount:a}] : [];
+  }
   if(!Array.isArray(DB.users)) DB.users=[];
   save();   // persist migrations so renamed categories are durable
 }
@@ -566,7 +596,7 @@ const PERIODS = [
   {key:"ytd",label:"Year to date"},
   {key:"yearview",label:"Year overview"},
   {key:"lastyear",label:"Last year"},
-  {key:"all",label:"All time"},
+  {key:"monthly",label:"Monthly overview"},
   {key:"custom",label:"Custom…"}
 ];
 function periodRange(){
@@ -579,7 +609,7 @@ function periodRange(){
   else if(PERIOD.key==="ytd"){ from=new Date(now.getFullYear(),0,1); }                             // Jan 1 – today (income basis = whole months to date)
   else if(PERIOD.key==="yearview"){ from=new Date(now.getFullYear(),0,1); to=new Date(now.getFullYear(),11,31); to.setHours(23,59,59,999); } // whole year vs full annual salary
   else if(PERIOD.key==="lastyear"){ from=new Date(now.getFullYear()-1,0,1); to=new Date(now.getFullYear()-1,11,31); to.setHours(23,59,59,999); } // prev full calendar year
-  else if(PERIOD.key==="all"){ from=new Date(2000,0,1); }
+  else if(PERIOD.key==="monthly"){ const my=(PERIOD.selY==null?new Date().getFullYear():PERIOD.selY), mm=(PERIOD.selM==null?new Date().getMonth():PERIOD.selM); from=new Date(my,mm,1); to=new Date(my,mm+1,0); to.setHours(23,59,59,999); }
   else if(PERIOD.key==="custom"){ from=PERIOD.from?parse(PERIOD.from):new Date(now.getFullYear(),now.getMonth(),1); to=PERIOD.to?parse(PERIOD.to):to; to.setHours(23,59,59,999); }
   from.setHours(0,0,0,0);
   return {from,to};
@@ -587,7 +617,7 @@ function periodRange(){
 function periodDays(){ const {from,to}=periodRange(); return Math.round((to-from)/86400000); }  // inclusive whole days (to is end-of-day)
 function periodLabel(){
   const {from,to}=periodRange();
-  if(PERIOD.key==="all") return "All transactions";
+  if(PERIOD.key==="monthly"){ const my=(PERIOD.selY==null?new Date().getFullYear():PERIOD.selY), mm=(PERIOD.selM==null?new Date().getMonth():PERIOD.selM); return new Date(my,mm,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
   const o={day:"numeric",month:"short",year:"2-digit"};
   return from.toLocaleDateString("en-GB",o)+" – "+to.toLocaleDateString("en-GB",o);
 }
@@ -620,18 +650,19 @@ function renderDash(){
   let spend=0;
   spendCats.forEach(c=>{ const net=-(byCat[c]||0); if(net>0) spend+=net; });
 
-  // Income basis = the BASE income for this timeframe PLUS all income logged in it
-  // (Wages + Other Income), always added on top. No greater-of — extras always add.
-  const dailyRate = regDaily();
-  const monthlyIncome = dailyRate*365.25/12;
-  const nowM = new Date().getMonth();
+  // Income basis = the BASE income for this timeframe (from your dated monthly take-home
+  // figures) PLUS all income logged in the period. No greater-of — extras always add.
+  const _n=new Date(), _y=_n.getFullYear(), _m=_n.getMonth();
   let base=0;
-  if(PERIOD.key==="month"||PERIOD.key==="lastmonth")        base=monthlyIncome;
-  else if(PERIOD.key==="ytd")                              base=monthlyIncome*(nowM+1);
-  else if(PERIOD.key==="yearview"||PERIOD.key==="lastyear") base=monthlyIncome*12;
-  // (All time / Custom have no fixed base — they use the income actually logged.)
+  if(PERIOD.key==="month")          base=incomeForMonth(_y,_m);
+  else if(PERIOD.key==="lastmonth"){ const d=new Date(_y,_m-1,1); base=incomeForMonth(d.getFullYear(),d.getMonth()); }
+  else if(PERIOD.key==="ytd")        base=incomeForRange(_y,0,_y,_m);
+  else if(PERIOD.key==="yearview")   base=incomeForRange(_y,0,_y,11);
+  else if(PERIOD.key==="lastyear")   base=incomeForRange(_y-1,0,_y-1,11);
+  else if(PERIOD.key==="monthly"){ const sy=(PERIOD.selY==null?_y:PERIOD.selY), sm=(PERIOD.selM==null?_m:PERIOD.selM); base=incomeForMonth(sy,sm); }
+  // (Custom has no fixed base — it uses the income actually logged.)
   let targetBase = base + income;                          // income = all logged income in the period
-  const fullBasis = (PERIOD.key==="month"||PERIOD.key==="ytd"||PERIOD.key==="yearview");
+  const fullBasis = (PERIOD.key==="month"||PERIOD.key==="ytd"||PERIOD.key==="yearview"||PERIOD.key==="monthly");
 
   document.getElementById("tIncome").textContent=gbp0(targetBase);
   document.getElementById("tSpend").textContent=gbp0(spend);
@@ -715,7 +746,7 @@ function renderDash(){
         <span class="amt" style="color:${col}">${shown}</span>
       </div>
       <div class="barwrap"><div class="bar"><span style="width:${w}%;background:${col}"></span></div></div>
-      <div class="meta"><span>${label}</span><span class="muted">of ${gbp0(targetBase)} ${PERIOD.key==="month"?"month income":(PERIOD.key==="ytd"?"income to date":"annual income")}</span></div>
+      <div class="meta"><span>${label}</span><span class="muted">of ${gbp0(targetBase)} ${(PERIOD.key==="month"||PERIOD.key==="monthly")?"month income":(PERIOD.key==="ytd"?"income to date":"annual income")}</span></div>
     </div>`;
     if(data.length===0) list.innerHTML = html; else list.innerHTML += html;
   }
@@ -738,8 +769,17 @@ function setPie(m){ PIEMODE=m; document.querySelectorAll("#pieToggle button").fo
 function renderPeriods(){
   document.getElementById("periodSel").innerHTML=PERIODS.map(p=>`<button class="${p.key===PERIOD.key?'on':''}" onclick="setPeriod('${p.key}')">${p.label}</button>`).join("");
   document.getElementById("customRange").style.display = PERIOD.key==="custom"?"block":"none";
+  document.getElementById("monthlyPick").style.display = PERIOD.key==="monthly"?"block":"none";
 }
-function setPeriod(k){ PERIOD.key=k; renderPeriods(); if(k!=="custom") renderDash(); }
+function setPeriod(k){ PERIOD.key=k; if(k==="monthly" && PERIOD.selY==null){ const n=new Date(); PERIOD.selY=n.getFullYear(); PERIOD.selM=n.getMonth(); } renderPeriods(); if(k==="monthly") setupMonthlyPickers(); if(k!=="custom") renderDash(); }
+function setupMonthlyPickers(){
+  const mSel=document.getElementById("moMonth"), ySel=document.getElementById("moYear");
+  const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  if(mSel.options.length===0) mSel.innerHTML=months.map((nm,i)=>`<option value="${i}">${nm}</option>`).join("");
+  if(ySel.options.length===0){ const ny=new Date().getFullYear(); let yrs=""; for(let y=ny+1;y>=ny-10;y--) yrs+=`<option value="${y}">${y}</option>`; ySel.innerHTML=yrs; }
+  mSel.value=PERIOD.selM; ySel.value=PERIOD.selY;
+}
+function applyMonthly(){ PERIOD.selM=+document.getElementById("moMonth").value; PERIOD.selY=+document.getElementById("moYear").value; renderDash(); }
 function applyCustom(){ PERIOD.from=document.getElementById("cFrom").value; PERIOD.to=document.getElementById("cTo").value; renderDash(); }
 
 /* ============================================================= ADD */
@@ -986,12 +1026,46 @@ function saveTxEdit(){
 /* ============================================================= SETTINGS */
 function renderSettings(){
   renderCatCfg();
-  document.getElementById("regAmount").value=DB.regularIncome.amount||"";
+  populateIncomePickers();
+  renderIncomeList();
   updRegEquiv();
   renderUsers();
 }
+function populateIncomePickers(){
+  const mSel=document.getElementById("incMonth"), ySel=document.getElementById("incYear");
+  if(mSel.options.length===0){
+    const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    mSel.innerHTML=months.map((nm,i)=>`<option value="${i}">${nm}</option>`).join("");
+    const ny=new Date().getFullYear(); let yrs=""; for(let y=ny+1;y>=ny-12;y--) yrs+=`<option value="${y}">${y}</option>`; ySel.innerHTML=yrs;
+    const n=new Date(); mSel.value=n.getMonth(); ySel.value=n.getFullYear();
+  }
+}
+function renderIncomeList(){
+  const list=incomeHist();
+  document.getElementById("incomeList").innerHTML = list.length ? list.map(h=>{
+    const pp=h.date.split("-"); const lbl=new Date(+pp[0],(+pp[1])-1,1).toLocaleDateString("en-GB",{month:"short",year:"numeric"});
+    return `<div class="catrow"><div class="catrow-main"><span class="cname">From ${lbl}</span><span style="font-weight:700">${gbp0(h.amount)}/mo</span><button class="btn danger" style="width:auto;padding:5px 9px;margin-left:auto" onclick="delIncome('${h.id}')">Delete</button></div></div>`;
+  }).join("") : '<div class="tiny muted" style="padding:2px 0">No income set yet — add your monthly take-home below.</div>';
+}
+function addIncome(){
+  const m=+document.getElementById("incMonth").value, y=+document.getElementById("incYear").value;
+  const amt=parseFloat(document.getElementById("incAmount").value);
+  if(!(amt>0)){ toast("Enter an amount"); return; }
+  const date=y+"-"+String(m+1).padStart(2,"0")+"-01";
+  if(!Array.isArray(DB.incomeHistory)) DB.incomeHistory=[];
+  const ex=DB.incomeHistory.find(h=>h.date===date);
+  if(ex) ex.amount=amt; else DB.incomeHistory.push({id:"inc"+Date.now()+Math.random().toString(36).slice(2,5), date, amount:amt});
+  DB.regularIncome={amount:currentMonthlyIncome(), freq:"monthly"};
+  save(); document.getElementById("incAmount").value="";
+  renderIncomeList(); renderCatCfg(); updRegEquiv(); renderDash(); toast("Income saved ✓");
+}
+function delIncome(id){
+  DB.incomeHistory=(DB.incomeHistory||[]).filter(h=>h.id!==id);
+  DB.regularIncome={amount:currentMonthlyIncome(), freq:"monthly"};
+  save(); renderIncomeList(); renderCatCfg(); updRegEquiv(); renderDash();
+}
 function renderCatCfg(){
-  const income=parseFloat(DB.regularIncome.amount)||0;
+  const income=currentMonthlyIncome();
   let html="";
   GROUPS.forEach(g=>{
     const list=allCats().filter(c=>c.group===g);
@@ -1057,13 +1131,8 @@ function addCat(){
   syncCatSelects(); renderCatCfg(); renderDash(); toast("Category added ✓");
 }
 function updRegEquiv(){
-  const a=parseFloat(DB.regularIncome.amount)||0;
-  document.getElementById("regEquiv").textContent = a>0 ? `≈ ${gbp0(a*12)}/year` : "Set your monthly take-home so the dashboard %s are accurate.";
-}
-function saveRegIncome(){
-  DB.regularIncome={amount:parseFloat(document.getElementById("regAmount").value)||0, freq:"monthly"};
-  DB.baseIncome=Math.round(parseFloat(DB.regularIncome.amount)||0);
-  save(); updRegEquiv(); renderDash();
+  const a=currentMonthlyIncome();
+  document.getElementById("regEquiv").textContent = a>0 ? `Current monthly income: ${gbp0(a)}  (≈ ${gbp0(a*12)}/year)` : "Add your monthly take-home below so the dashboard figures are accurate.";
 }
 function exportData(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
