@@ -253,6 +253,10 @@ canvas{max-width:100%;}
       <div class="field" style="margin-bottom:10px"><select id="txFilter" onchange="renderTx()"></select></div>
       <div class="field" style="margin-bottom:10px"><select id="txPeriod" onchange="onTxPeriodChange()"></select></div>
     </div>
+    <div class="field" style="margin-bottom:10px"><select id="txSort" onchange="renderTx()">
+      <option value="date">Sort: Newest first</option>
+      <option value="amount">Sort: Largest amount first</option>
+    </select></div>
     <div id="txCustom" class="card" style="display:none;margin-bottom:10px">
       <div class="row">
         <div><label>From</label><input type="date" id="txFrom" onchange="renderTx()"></div>
@@ -850,7 +854,6 @@ function pickSugg(enc){
   const x=descSuggestions().find(s=>s.desc===desc); if(!x) return;
   setFlow(x.flow||"out");
   document.getElementById("aDesc").value=x.desc;
-  document.getElementById("aAmount").value=x.amount;
   const cat=document.getElementById("aCat");
   if([...cat.options].some(o=>o.value===x.category)) cat.value=x.category;
   document.getElementById("descSugg").style.display="none";
@@ -1026,9 +1029,12 @@ function renderTx(){
   const list=document.getElementById("txList");
   // orphans (entries whose category was deleted) — always shown at the top, awaiting reallocation
   const orphans=[...DB.txns].filter(isOrphan).sort((a,b)=>a.date<b.date?1:-1);
-  let tx=[...DB.txns].filter(t=>!isOrphan(t)).sort((a,b)=>a.date<b.date?1:-1);
+  let tx=[...DB.txns].filter(t=>!isOrphan(t));
   if(f) tx=tx.filter(t=>t.category===f);
   if(rg) tx=tx.filter(t=>{ const d=parse(t.date); return d>=rg.from && d<=rg.to; });
+  const sortBy=(document.getElementById("txSort")||{}).value||"date";
+  if(sortBy==="amount") tx.sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount) || (a.date<b.date?1:-1));
+  else tx.sort((a,b)=>a.date<b.date?1:-1);
   let html="";
   if(orphans.length){
     const opts='<option value="">Reallocate to…</option>'+activeCats().map(c=>`<option>${c.name}</option>`).join("");
