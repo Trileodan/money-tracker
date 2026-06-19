@@ -94,6 +94,13 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transf
 .catrow-main .pct{font-size:11px;color:var(--muted);min-width:30px;text-align:right;}
 .catrow-btns{display:flex;gap:6px;margin-top:8px;}
 .catrow-btns button{flex:1;width:auto;padding:6px 4px;font-size:12px;}
+.suggwrap{position:relative;}
+.suggbox{position:absolute;left:0;right:0;top:100%;z-index:80;background:var(--card2);border:1px solid var(--line);border-radius:10px;margin-top:4px;max-height:240px;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.45);display:none;}
+.suggitem{padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer;}
+.suggitem:last-child{border-bottom:none;}
+.spendrow{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line);}
+.spendrow:last-child{border-bottom:none;}
+.spendrow .v{font-weight:700;font-size:16px;}
 .orphanrow{background:#2a230f;border:1px solid var(--amber);border-radius:12px;padding:10px 12px;margin-bottom:8px;}
 .orphanhdr{font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.04em;margin:2px 0 8px;}
 .realloc{margin-top:8px;}
@@ -161,6 +168,9 @@ canvas{max-width:100%;}
         <div><label>Year</label><select id="moYear" onchange="applyMonthly()"></select></div>
       </div>
     </div>
+    <div id="yearPick" style="display:none" class="card">
+      <div><label>Year</label><select id="yvSel" onchange="applyYear()"></select></div>
+    </div>
 
     <div class="card" id="emptyHint" style="display:none">
       <h2 style="margin-top:2px">Welcome 👋</h2>
@@ -201,10 +211,10 @@ canvas{max-width:100%;}
           <button data-flow="out" onclick="setFlow('out')">Outgoing</button>
         </div>
       </div>
+      <div class="field suggwrap"><label>Description</label><input id="aDesc" autocomplete="off" placeholder="e.g. Phone Bill, Coffee" oninput="descInput()" onblur="setTimeout(function(){var b=document.getElementById('descSugg');if(b)b.style.display='none';},150)"><div class="suggbox" id="descSugg"></div></div>
       <div class="field"><label>Amount (£)</label><input type="number" inputmode="decimal" id="aAmount" placeholder="0.00" step="0.01"></div>
       <div class="field"><label>Date</label><input type="date" id="aDate"></div>
       <div class="field"><label>Transaction type</label><select id="aCat"></select></div>
-      <div class="field"><label>Description (optional)</label><input id="aDesc" placeholder="e.g. Tesco, Wages"></div>
       <div class="field">
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
           <input type="checkbox" id="aRec" style="width:auto" onchange="document.getElementById('aFreqWrap').style.display=this.checked?'block':'none'"> Repeat this transaction
@@ -346,6 +356,15 @@ canvas{max-width:100%;}
       <button class="btn sec" onclick="closeRecModal()">Cancel</button>
       <button class="btn" onclick="saveRecEdit()">Save changes</button>
     </div>
+  </div>
+</div>
+
+<!-- SPEND TOTAL MODAL -->
+<div class="modal" id="spendModal">
+  <div class="sheet">
+    <h2 style="margin-top:0" id="spendTitle">Spent on</h2>
+    <div id="spendBody"></div>
+    <button class="btn sec" style="margin-top:14px" onclick="closeSpendModal()">Close</button>
   </div>
 </div>
 
@@ -595,7 +614,6 @@ const PERIODS = [
   {key:"lastmonth",label:"Last month"},
   {key:"ytd",label:"Year to date"},
   {key:"yearview",label:"Year overview"},
-  {key:"lastyear",label:"Last year"},
   {key:"monthly",label:"Monthly overview"},
   {key:"custom",label:"Custom…"}
 ];
@@ -607,7 +625,7 @@ function periodRange(){
   else if(PERIOD.key==="lastmonth"){ from=new Date(now.getFullYear(),now.getMonth()-1,1); to=new Date(now.getFullYear(),now.getMonth(),0); to.setHours(23,59,59,999); } // 1st–end of last calendar month
   else if(PERIOD.key==="year"){ from=new Date(now.getFullYear(),0,1); }                            // 1 Jan – today
   else if(PERIOD.key==="ytd"){ from=new Date(now.getFullYear(),0,1); }                             // Jan 1 – today (income basis = whole months to date)
-  else if(PERIOD.key==="yearview"){ from=new Date(now.getFullYear(),0,1); to=new Date(now.getFullYear(),11,31); to.setHours(23,59,59,999); } // whole year vs full annual salary
+  else if(PERIOD.key==="yearview"){ const yy=(PERIOD.yvYear==null?now.getFullYear():PERIOD.yvYear); from=new Date(yy,0,1); to=new Date(yy,11,31); to.setHours(23,59,59,999); } // chosen whole year
   else if(PERIOD.key==="lastyear"){ from=new Date(now.getFullYear()-1,0,1); to=new Date(now.getFullYear()-1,11,31); to.setHours(23,59,59,999); } // prev full calendar year
   else if(PERIOD.key==="monthly"){ const my=(PERIOD.selY==null?new Date().getFullYear():PERIOD.selY), mm=(PERIOD.selM==null?new Date().getMonth():PERIOD.selM); from=new Date(my,mm,1); to=new Date(my,mm+1,0); to.setHours(23,59,59,999); }
   else if(PERIOD.key==="custom"){ from=PERIOD.from?parse(PERIOD.from):new Date(now.getFullYear(),now.getMonth(),1); to=PERIOD.to?parse(PERIOD.to):to; to.setHours(23,59,59,999); }
@@ -615,9 +633,18 @@ function periodRange(){
   return {from,to};
 }
 function periodDays(){ const {from,to}=periodRange(); return Math.round((to-from)/86400000); }  // inclusive whole days (to is end-of-day)
+// number of whole months a timeframe spans — category targets (monthly £) scale by this
+function periodMonths(){
+  const n=new Date();
+  if(PERIOD.key==="ytd") return n.getMonth()+1;                 // Jan..current month
+  if(PERIOD.key==="yearview") return 12;
+  if(PERIOD.key==="custom"){ const r=periodRange(); return Math.max(1,(r.to.getFullYear()*12+r.to.getMonth())-(r.from.getFullYear()*12+r.from.getMonth())+1); }
+  return 1;                                                     // month / lastmonth / monthly overview
+}
 function periodLabel(){
   const {from,to}=periodRange();
   if(PERIOD.key==="monthly"){ const my=(PERIOD.selY==null?new Date().getFullYear():PERIOD.selY), mm=(PERIOD.selM==null?new Date().getMonth():PERIOD.selM); return new Date(my,mm,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
+  if(PERIOD.key==="yearview"){ return "Jan – Dec "+(PERIOD.yvYear==null?new Date().getFullYear():PERIOD.yvYear); }
   const o={day:"numeric",month:"short",year:"2-digit"};
   return from.toLocaleDateString("en-GB",o)+" – "+to.toLocaleDateString("en-GB",o);
 }
@@ -657,7 +684,7 @@ function renderDash(){
   if(PERIOD.key==="month")          base=incomeForMonth(_y,_m);
   else if(PERIOD.key==="lastmonth"){ const d=new Date(_y,_m-1,1); base=incomeForMonth(d.getFullYear(),d.getMonth()); }
   else if(PERIOD.key==="ytd")        base=incomeForRange(_y,0,_y,_m);
-  else if(PERIOD.key==="yearview")   base=incomeForRange(_y,0,_y,11);
+  else if(PERIOD.key==="yearview"){ const yy=(PERIOD.yvYear==null?_y:PERIOD.yvYear); base=incomeForRange(yy,0,yy,11); }
   else if(PERIOD.key==="lastyear")   base=incomeForRange(_y-1,0,_y-1,11);
   else if(PERIOD.key==="monthly"){ const sy=(PERIOD.selY==null?_y:PERIOD.selY), sm=(PERIOD.selM==null?_m:PERIOD.selM); base=incomeForMonth(sy,sm); }
   // (Custom has no fixed base — it uses the income actually logged.)
@@ -676,7 +703,7 @@ function renderDash(){
     const inflow = (byCat[c]||0)>0 ? byCat[c] : 0;
     const net = out - inflow;
     const cObj = catByName(c);
-    const target = cObj ? (+cObj.amount||0) : 0;
+    const target = (cObj ? (+cObj.amount||0) : 0) * periodMonths();
     return {c, out, inflow, net:Math.max(net,0), target};
   }).filter(d=>d.out>0 || d.target>0).sort((a,b)=>b.net-a.net);
 
@@ -770,8 +797,22 @@ function renderPeriods(){
   document.getElementById("periodSel").innerHTML=PERIODS.map(p=>`<button class="${p.key===PERIOD.key?'on':''}" onclick="setPeriod('${p.key}')">${p.label}</button>`).join("");
   document.getElementById("customRange").style.display = PERIOD.key==="custom"?"block":"none";
   document.getElementById("monthlyPick").style.display = PERIOD.key==="monthly"?"block":"none";
+  document.getElementById("yearPick").style.display = PERIOD.key==="yearview"?"block":"none";
 }
-function setPeriod(k){ PERIOD.key=k; if(k==="monthly" && PERIOD.selY==null){ const n=new Date(); PERIOD.selY=n.getFullYear(); PERIOD.selM=n.getMonth(); } renderPeriods(); if(k==="monthly") setupMonthlyPickers(); if(k!=="custom") renderDash(); }
+function setPeriod(k){ PERIOD.key=k;
+  if(k==="monthly" && PERIOD.selY==null){ const n=new Date(); PERIOD.selY=n.getFullYear(); PERIOD.selM=n.getMonth(); }
+  if(k==="yearview" && PERIOD.yvYear==null){ PERIOD.yvYear=new Date().getFullYear(); }
+  renderPeriods();
+  if(k==="monthly") setupMonthlyPickers();
+  if(k==="yearview") setupYearPicker();
+  if(k!=="custom") renderDash();
+}
+function setupYearPicker(){
+  const ySel=document.getElementById("yvSel");
+  if(ySel.options.length===0){ const ny=new Date().getFullYear(); let yrs=""; for(let y=ny+1;y>=ny-10;y--) yrs+=`<option value="${y}">${y}</option>`; ySel.innerHTML=yrs; }
+  ySel.value=PERIOD.yvYear;
+}
+function applyYear(){ PERIOD.yvYear=+document.getElementById("yvSel").value; renderDash(); }
 function setupMonthlyPickers(){
   const mSel=document.getElementById("moMonth"), ySel=document.getElementById("moYear");
   const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -780,6 +821,40 @@ function setupMonthlyPickers(){
   mSel.value=PERIOD.selM; ySel.value=PERIOD.selY;
 }
 function applyMonthly(){ PERIOD.selM=+document.getElementById("moMonth").value; PERIOD.selY=+document.getElementById("moYear").value; renderDash(); }
+
+/* ----- description autocomplete (frequency-ordered) ----- */
+function descSuggestions(){
+  const map={};
+  [...(DB.txns||[])].filter(t=>!isOrphan(t)).sort((a,b)=>a.date<b.date?-1:1).forEach(t=>{
+    const dsc=(t.desc||"").trim(); if(!dsc) return;
+    const key=dsc.toLowerCase();
+    const flow=t.amount>=0?"in":"out";
+    if(!map[key]) map[key]={key,desc:dsc,count:0,amount:Math.abs(t.amount),category:t.category,flow};
+    const e=map[key]; e.count++; e.desc=dsc; e.amount=Math.abs(t.amount); e.category=t.category; e.flow=flow;  // most recent wins
+  });
+  return Object.values(map);
+}
+function descInput(){
+  const q=document.getElementById("aDesc").value.trim().toLowerCase();
+  const box=document.getElementById("descSugg");
+  if(!q){ box.style.display="none"; box.innerHTML=""; return; }
+  let sugg=descSuggestions().filter(x=>x.key.indexOf(q)>=0);
+  sugg.sort((a,b)=> ((b.key.indexOf(q)===0)-(a.key.indexOf(q)===0)) || (b.count-a.count));
+  sugg=sugg.slice(0,6);
+  if(!sugg.length){ box.style.display="none"; box.innerHTML=""; return; }
+  box.innerHTML=sugg.map(x=>`<div class="suggitem" onmousedown="pickSugg('${encodeURIComponent(x.desc)}')">${x.desc} <span class="muted tiny">· ${x.count}× · ${gbp0(x.amount)} · ${x.category}</span></div>`).join("");
+  box.style.display="block";
+}
+function pickSugg(enc){
+  const desc=decodeURIComponent(enc);
+  const x=descSuggestions().find(s=>s.desc===desc); if(!x) return;
+  setFlow(x.flow||"out");
+  document.getElementById("aDesc").value=x.desc;
+  document.getElementById("aAmount").value=x.amount;
+  const cat=document.getElementById("aCat");
+  if([...cat.options].some(o=>o.value===x.category)) cat.value=x.category;
+  document.getElementById("descSugg").style.display="none";
+}
 function applyCustom(){ PERIOD.from=document.getElementById("cFrom").value; PERIOD.to=document.getElementById("cTo").value; renderDash(); }
 
 /* ============================================================= ADD */
@@ -984,13 +1059,36 @@ function renderTx(){
         </div>`;
     const lock = (!masked && t.priv) ? ' <span class="privlock">🔒</span>' : '';
     return `<div class="tx">
-      <div class="l"><div class="d">${title}${lock}</div><div class="s">${fmtDate(t.date)} · ${catLbl}${who}</div></div>
+      <div class="l" ${masked?'':`onclick="openSpendTotal('${encodeURIComponent(t.desc||t.category)}')" style="cursor:pointer"`}><div class="d">${title}${lock}</div><div class="s">${fmtDate(t.date)} · ${catLbl}${who}</div></div>
       <div class="r"><div class="a ${t.amount>=0?'pos':'neg'}">${t.amount>=0?'+':'-'}${gbp(t.amount)}</div>${ctrls}</div>
     </div>`;
   }).join("");
   list.innerHTML=html;
 }
 function reallocate(id,cat){ if(!cat) return; const t=DB.txns.find(x=>x.id===id); if(!t) return; t.category=cat; t.edById=CURRENT?CURRENT.id:null; t.edByName=curName(); save(); refreshAll(); renderTx(); toast("Reallocated ✓"); }
+function spendTotalsFor(desc){
+  const key=desc.trim().toLowerCase();
+  const now=new Date(), cy=now.getFullYear(), cm=now.getMonth();
+  const r={month:{s:0,n:0},year:{s:0,n:0},all:{s:0,n:0}};
+  (DB.txns||[]).forEach(t=>{
+    if((t.desc||"").trim().toLowerCase()!==key) return;
+    const amt=t.amount<0?-t.amount:0; if(amt<=0) return;
+    const dt=parse(t.date);
+    r.all.s+=amt; r.all.n++;
+    if(dt.getFullYear()===cy){ r.year.s+=amt; r.year.n++; if(dt.getMonth()===cm){ r.month.s+=amt; r.month.n++; } }
+  });
+  return r;
+}
+function openSpendTotal(enc){
+  const desc=decodeURIComponent(enc);
+  const r=spendTotalsFor(desc);
+  document.getElementById("spendTitle").textContent='Spent on "'+desc+'"';
+  const line=(lab,o)=>`<div class="spendrow"><span><b>${lab}</b> <span class="muted tiny">${o.n} ${o.n===1?'entry':'entries'}</span></span><span class="v">${gbp0(o.s)}</span></div>`;
+  document.getElementById("spendBody").innerHTML = line("This month",r.month)+line("This year",r.year)+line("All time",r.all)+
+    (r.all.n?`<p class="tiny muted" style="margin-top:10px">Average per entry: ${gbp(r.all.s/r.all.n)} · matched any capitalisation</p>`:'<p class="tiny muted" style="margin-top:10px">No spending recorded under this description.</p>');
+  document.getElementById("spendModal").classList.add("on");
+}
+function closeSpendModal(){ document.getElementById("spendModal").classList.remove("on"); }
 function delTx(id){ const t=DB.txns.find(x=>x.id===id); if(t&&isMasked(t)){ toast("This entry is private"); return; } DB.txns=DB.txns.filter(t=>t.id!==id); save(); refreshAll(); toast("Deleted"); }
 
 /* ----- edit a logged transaction ----- */
