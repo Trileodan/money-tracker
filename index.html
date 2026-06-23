@@ -205,7 +205,7 @@ canvas{max-width:100%;}
     <h2 style="margin-top:2px">Monthly trend (last 12 months)</h2>
     <p class="sub">Spending per month. Pick a category to see just its trend vs target; "All" shows the Needs / Wants / Savings split with your monthly income as a line.</p>
     <div class="card" id="trendCard">
-      <div class="field" style="margin-bottom:10px"><select id="trendSel" onchange="renderTrend()"></select></div>
+      <div class="periods" id="trendSel" style="margin-bottom:12px"></div>
       <canvas id="trendChart" height="230"></canvas>
       <div class="legend" id="trendLegend"></div>
     </div>
@@ -674,6 +674,7 @@ function txInPeriod(){
 /* ============================================================= RENDER DASHBOARD */
 let chart;
 let trendChart;
+let TRENDCAT="__all__";
 let PIEMODE="cat";
 const GROUP_COLORS={Needs:"#3b82f6",Wants:"#ec4899",Savings:"#10b981"};
 function renderDash(){
@@ -829,14 +830,15 @@ function catNetInMonth(name,y,m){
 }
 function populateTrendSel(){
   const sel=document.getElementById("trendSel"); if(!sel) return;
-  const cur=sel.value;
-  sel.innerHTML=['<option value="__all__">All — Needs / Wants / Savings</option>'].concat(activeCats().map(c=>`<option value="${c.name}">${c.name}</option>`)).join("");
-  if(cur && [...sel.options].some(o=>o.value===cur)) sel.value=cur;
+  if(TRENDCAT!=="__all__" && !activeCats().some(c=>c.name===TRENDCAT)) TRENDCAT="__all__";   // reset if category gone/disabled
+  const items=[{v:"__all__",label:"All"}].concat(activeCats().map(c=>({v:c.name,label:c.name})));
+  sel.innerHTML=items.map(it=>`<button class="${it.v===TRENDCAT?'on':''}" onclick="setTrendCat('${encodeURIComponent(it.v)}')">${it.label}</button>`).join("");
 }
+function setTrendCat(enc){ TRENDCAT=decodeURIComponent(enc); renderTrend(); }
 function renderTrend(){
-  const sel=document.getElementById("trendSel"); if(!sel) return;
+  if(!document.getElementById("trendSel")) return;
   populateTrendSel();
-  const choice=sel.value||"__all__";
+  const choice=TRENDCAT||"__all__";
   const months=monthsBack(12), labels=months.map(x=>x.label);
   const ctx=document.getElementById("trendChart");
   let datasets, opts, legend="";
