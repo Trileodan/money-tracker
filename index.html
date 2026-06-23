@@ -172,6 +172,7 @@ canvas{max-width:100%;}
       <div><label>Year</label><select id="yvSel" onchange="applyYear()"></select></div>
     </div>
 
+    <div id="dashMain">
     <div class="card" id="emptyHint" style="display:none">
       <h2 style="margin-top:2px">Welcome 👋</h2>
       <p class="note">This is your private money tracker. Nothing is stored online — all of your data lives only on this device. To bring in your figures, open <b>Settings → Import backup</b> and choose your <code>.json</code> file. You can start adding transactions any time too.</p>
@@ -198,13 +199,16 @@ canvas{max-width:100%;}
     <h2>Spending by category</h2>
     <p class="sub" id="targetNote">Bars show spend vs your suggested target. Tap a target to edit in Settings.</p>
     <div class="card" id="catList"></div>
+    </div>
 
-    <h2>Monthly trend (last 12 months)</h2>
-    <p class="sub">See spending per month. Pick a category to view just its monthly trend vs target.</p>
+    <div id="trendSection" style="display:none">
+    <h2 style="margin-top:2px">Monthly trend (last 12 months)</h2>
+    <p class="sub">Spending per month. Pick a category to see just its trend vs target; "All" shows the Needs / Wants / Savings split with your monthly income as a line.</p>
     <div class="card" id="trendCard">
       <div class="field" style="margin-bottom:10px"><select id="trendSel" onchange="renderTrend()"></select></div>
       <canvas id="trendChart" height="230"></canvas>
       <div class="legend" id="trendLegend"></div>
+    </div>
     </div>
   </div>
 
@@ -627,7 +631,8 @@ const PERIODS = [
   {key:"ytd",label:"Year to date"},
   {key:"yearview",label:"Year overview"},
   {key:"monthly",label:"Monthly overview"},
-  {key:"custom",label:"Custom…"}
+  {key:"custom",label:"Custom…"},
+  {key:"trends",label:"Trends"}
 ];
 function periodRange(){
   const now = new Date(); now.setHours(0,0,0,0);
@@ -640,6 +645,7 @@ function periodRange(){
   else if(PERIOD.key==="yearview"){ const yy=(PERIOD.yvYear==null?now.getFullYear():PERIOD.yvYear); from=new Date(yy,0,1); to=new Date(yy,11,31); to.setHours(23,59,59,999); } // chosen whole year
   else if(PERIOD.key==="lastyear"){ from=new Date(now.getFullYear()-1,0,1); to=new Date(now.getFullYear()-1,11,31); to.setHours(23,59,59,999); } // prev full calendar year
   else if(PERIOD.key==="monthly"){ const my=(PERIOD.selY==null?new Date().getFullYear():PERIOD.selY), mm=(PERIOD.selM==null?new Date().getMonth():PERIOD.selM); from=new Date(my,mm,1); to=new Date(my,mm+1,0); to.setHours(23,59,59,999); }
+  else if(PERIOD.key==="trends"){ from=new Date(now.getFullYear(),now.getMonth()-11,1); }
   else if(PERIOD.key==="custom"){ from=PERIOD.from?parse(PERIOD.from):new Date(now.getFullYear(),now.getMonth(),1); to=PERIOD.to?parse(PERIOD.to):to; to.setHours(23,59,59,999); }
   from.setHours(0,0,0,0);
   return {from,to};
@@ -657,6 +663,7 @@ function periodLabel(){
   const {from,to}=periodRange();
   if(PERIOD.key==="monthly"){ const my=(PERIOD.selY==null?new Date().getFullYear():PERIOD.selY), mm=(PERIOD.selM==null?new Date().getMonth():PERIOD.selM); return new Date(my,mm,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
   if(PERIOD.key==="yearview"){ return "Jan – Dec "+(PERIOD.yvYear==null?new Date().getFullYear():PERIOD.yvYear); }
+  if(PERIOD.key==="trends") return "Last 12 months";
   const o={day:"numeric",month:"short",year:"2-digit"};
   return from.toLocaleDateString("en-GB",o)+" – "+to.toLocaleDateString("en-GB",o);
 }
@@ -671,6 +678,10 @@ let PIEMODE="cat";
 const GROUP_COLORS={Needs:"#3b82f6",Wants:"#ec4899",Savings:"#10b981"};
 function renderDash(){
   document.getElementById("dashSub").textContent = periodLabel();
+  const isTrends = PERIOD.key==="trends";
+  document.getElementById("dashMain").style.display = isTrends?"none":"";
+  document.getElementById("trendSection").style.display = isTrends?"block":"none";
+  if(isTrends){ renderTrend(); return; }
   document.getElementById("emptyHint").style.display = (DB.txns && DB.txns.length===0) ? "block" : "none";
   const tx = txInPeriod();
   let income=0, saved=0, wagesIn=0, otherIn=0;
@@ -790,7 +801,6 @@ function renderDash(){
     </div>`;
     if(data.length===0) list.innerHTML = html; else list.innerHTML += html;
   }
-  try{ renderTrend(); }catch(e){}
 }
 
 function drawChart(data){
@@ -834,8 +844,11 @@ function renderTrend(){
     const groups=["Needs","Wants","Savings"], gd={Needs:[],Wants:[],Savings:[]};
     months.forEach(mo=>{ const g={Needs:0,Wants:0,Savings:0}; activeCats().forEach(c=>{ g[c.group]=(g[c.group]||0)+catNetInMonth(c.name,mo.y,mo.m); }); groups.forEach(gr=>gd[gr].push(Math.round(g[gr]||0))); });
     datasets=groups.map(gr=>({label:gr, data:gd[gr], backgroundColor:GROUP_COLORS[gr], stack:"s", borderWidth:0}));
+    // monthly income line — where the stacked bars rise above it, spending has surpassed income
+    const incLine=months.map(mo=>Math.round(incomeForMonth(mo.y,mo.m)));
+    datasets.push({type:"line", label:"Income", data:incLine, stack:"income", borderColor:"#fbbf24", borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false, order:0});
     opts={animation:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>" "+c.dataset.label+": £"+c.parsed.y.toLocaleString()}}}, scales:{x:{stacked:true,grid:{display:false},ticks:{color:"#94a3b8"}}, y:{stacked:true,beginAtZero:true,ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}}}};
-    legend=groups.map(gr=>`<div><span class="dot" style="background:${GROUP_COLORS[gr]}"></span>${gr}</div>`).join("");
+    legend=groups.map(gr=>`<div><span class="dot" style="background:${GROUP_COLORS[gr]}"></span>${gr}</div>`).join("")+`<div><span style="display:inline-block;width:14px;border-top:2px dashed #fbbf24;vertical-align:middle"></span> Income</div>`;
   } else {
     const cat=catByName(choice), target=cat?(+cat.amount||0):0;
     const vals=months.map(mo=>Math.round(catNetInMonth(choice,mo.y,mo.m)));
