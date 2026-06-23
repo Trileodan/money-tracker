@@ -852,14 +852,18 @@ function renderTrend(){
     opts={animation:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>" "+c.dataset.label+": £"+c.parsed.y.toLocaleString()}}}, scales:{x:{stacked:true,grid:{display:false},ticks:{color:"#94a3b8"}}, y:{stacked:true,beginAtZero:true,ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}}}};
     legend=groups.map(gr=>`<div><span class="dot" style="background:${GROUP_COLORS[gr]}"></span>${gr}</div>`).join("")+`<div><span style="display:inline-block;width:14px;border-top:2px dashed #fbbf24;vertical-align:middle"></span> Income</div>`;
   } else {
-    const cat=catByName(choice), target=cat?(+cat.amount||0):0;
+    const cat=catByName(choice), target=cat?(+cat.amount||0):0, isFloor=isFloorName(choice);
     const vals=months.map(mo=>Math.round(catNetInMonth(choice,mo.y,mo.m)));
-    const cols=vals.map(v=> target>0 ? (v>target?"#f43f5e":"#10b981") : "#10b981");
+    // Savings/Investments are a minimum to beat: green when over/met, red when under.
+    // Spending categories: green when under, red when over.
+    const cols=vals.map(v=> target<=0 ? "#10b981" : (isFloor ? (v>=target?"#10b981":"#f43f5e") : (v>target?"#f43f5e":"#10b981")));
     datasets=[{type:"bar", label:choice, data:vals, backgroundColor:cols, borderWidth:0, order:2}];
     if(target>0) datasets.push({type:"line", label:"Target", data:months.map(()=>Math.round(target)), borderColor:"#f1f5f9", borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false, order:1});
     opts={animation:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>" £"+c.parsed.y.toLocaleString()}}}, scales:{x:{grid:{display:false},ticks:{color:"#94a3b8"}}, y:{beginAtZero:true,ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}}}};
     legend = target>0
-      ? `<div><span class="dot" style="background:#10b981"></span>Under £${target}</div><div><span class="dot" style="background:#f43f5e"></span>Over £${target}</div><div><span style="display:inline-block;width:14px;border-top:2px dashed #f1f5f9;vertical-align:middle"></span> Target £${target}</div>`
+      ? (isFloor
+          ? `<div><span class="dot" style="background:#10b981"></span>Met £${target}+ goal</div><div><span class="dot" style="background:#f43f5e"></span>Under £${target}</div><div><span style="display:inline-block;width:14px;border-top:2px dashed #f1f5f9;vertical-align:middle"></span> Goal £${target}</div>`
+          : `<div><span class="dot" style="background:#10b981"></span>Under £${target}</div><div><span class="dot" style="background:#f43f5e"></span>Over £${target}</div><div><span style="display:inline-block;width:14px;border-top:2px dashed #f1f5f9;vertical-align:middle"></span> Target £${target}</div>`)
       : `<div class="muted tiny">No target set for ${choice}</div>`;
   }
   const card=document.getElementById("trendCard");
