@@ -342,6 +342,47 @@ canvas{max-width:100%;}
     <p class="tiny muted" style="text-align:center;padding:10px 0 4px">Money Tracker · private · stored on this device only</p>
   </div>
 
+  <!-- ============ INVESTMENT PLANNER ============ -->
+  <div class="page" id="page-invest">
+    <h1>Investment planner</h1>
+    <p class="sub">Track where your portfolio is and where it's heading.</p>
+
+    <div class="card">
+      <h2 style="margin-top:2px">Your details</h2>
+      <div class="field"><label>Date of birth</label><input type="date" id="invDob" onchange="saveInvDob()"></div>
+      <p class="tiny muted" id="invRetNote"></p>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:2px">Current portfolio total</h2>
+      <p class="note">Submit your actual portfolio value now and then — projections start from your most recent figure. Add a new one whenever the estimate drifts from reality.</p>
+      <div id="invPortList" style="margin-top:6px"></div>
+      <div class="row" style="margin-top:10px">
+        <div><label>Date</label><input type="date" id="invPortDate"></div>
+        <div><label>Total (£)</label><input type="number" id="invPortAmt" inputmode="decimal" placeholder="£"></div>
+      </div>
+      <button class="btn sec" style="margin-top:8px" onclick="addPortfolio()">Save current total</button>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:2px">Rate of growth</h2>
+      <p class="note">Enter a stock code and tap Fetch to estimate the rate from its last 12 months, or just type an expected annual growth %. If the fetch is blocked, type it in manually.</p>
+      <div class="row" style="margin-top:6px">
+        <div style="flex:2"><label>Stock code</label><input id="invStock" placeholder="e.g. FWRG" oninput="onStockInput(this.value)"></div>
+        <div style="flex:none;align-self:flex-end"><button class="btn sec" style="width:auto;padding:12px 14px" onclick="fetchGrowth()">Fetch</button></div>
+      </div>
+      <p class="tiny muted" id="invFetchMsg" style="margin-top:6px"></p>
+      <div class="field" style="margin-top:8px"><label>Annual growth rate (%)</label><input type="number" id="invGrowth" inputmode="decimal" step="0.1" onchange="saveGrowth()"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:2px">Projection</h2>
+      <p class="tiny muted" id="invAssump"></p>
+      <div id="invProj" style="margin-top:8px"></div>
+      <p class="tiny muted" style="margin-top:10px">Estimates only — not financial advice. Markets go down as well as up.</p>
+    </div>
+  </div>
+
 </div>
 
 <!-- TAB BAR -->
@@ -350,6 +391,7 @@ canvas{max-width:100%;}
   <button data-tab="tx" onclick="go('tx')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History<span class="badge" id="orphanBadge" style="display:none">0</span></button>
   <button data-tab="add" onclick="go('add')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add</button>
   <button data-tab="rec" onclick="go('rec')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M21 4v4h-4M3 20v-4h4"/></svg>Monthly<span class="badge" id="pendBadge" style="display:none">0</span></button>
+  <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 5h6v6"/></svg>Invest</button>
   <button data-tab="set" onclick="go('set')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
 </div>
 
@@ -565,6 +607,8 @@ function load(){
     });
   })();
   if(DB.regularIncome) DB.regularIncome.freq="monthly";   // wages are monthly only now
+  if(!DB.invest || typeof DB.invest!=="object") DB.invest={birthdate:"",portfolio:[],stock:"",annualGrowth:null,growthAuto:false};
+  if(!Array.isArray(DB.invest.portfolio)) DB.invest.portfolio=[];
   // migrate: dated income history (one take-home figure per effective month)
   if(!Array.isArray(DB.incomeHistory)){
     const a = DB.regularIncome ? (parseFloat(DB.regularIncome.amount)||0) : 0;
@@ -1335,8 +1379,121 @@ function go(tab){
   if(tab==="rec") renderRec();
   if(tab==="tx"){ renderTxFilter(); renderTx(); }
   if(tab==="set") renderSettings();
+  if(tab==="invest") renderInvest();
   window.scrollTo(0,0);
 }
+/* ============================================================= INVESTMENT PLANNER */
+function invInit(){ if(!DB.invest||typeof DB.invest!=="object") DB.invest={birthdate:"",portfolio:[],stock:"",annualGrowth:null,growthAuto:false}; if(!Array.isArray(DB.invest.portfolio)) DB.invest.portfolio=[]; }
+function portfolioSubs(){ invInit(); return DB.invest.portfolio.slice().sort((a,b)=>a.date<b.date?-1:1); }
+function saveInvDob(){ invInit(); DB.invest.birthdate=document.getElementById("invDob").value||""; save(); renderInvest(); }
+function onStockInput(v){ invInit(); DB.invest.stock=v; save(); }
+function saveGrowth(){ invInit(); const v=parseFloat(document.getElementById("invGrowth").value); DB.invest.annualGrowth=isNaN(v)?null:v; DB.invest.growthAuto=false; save(); renderInvProjection(); }
+function addPortfolio(){
+  invInit();
+  const date=document.getElementById("invPortDate").value||todayISO();
+  const amt=parseFloat(document.getElementById("invPortAmt").value);
+  if(!(amt>0)){ toast("Enter your portfolio total"); return; }
+  const ex=DB.invest.portfolio.find(h=>h.date===date);
+  if(ex) ex.amount=amt; else DB.invest.portfolio.push({id:"pf"+Date.now()+Math.random().toString(36).slice(2,5), date, amount:amt});
+  save(); document.getElementById("invPortAmt").value="";
+  renderInvest(); toast("Portfolio total saved ✓");
+}
+function delPortfolio(id){ invInit(); DB.invest.portfolio=DB.invest.portfolio.filter(h=>h.id!==id); save(); renderInvest(); }
+// avg of 'Investments' category outflows over the previous 6 months, from the first submission month
+function avgMonthlyInvestment(){
+  const subs=portfolioSubs(); if(!subs.length) return 0;
+  const fs=parse(subs[0].date), fkey=fs.getFullYear()*12+fs.getMonth();
+  const now=new Date(), nowKey=now.getFullYear()*12+now.getMonth();
+  const startKey=Math.max(fkey, nowKey-5);
+  let total=0;
+  (DB.txns||[]).forEach(t=>{ if(!t.category||t.category.toLowerCase()!=="investments") return; if(t.amount>=0) return; const dt=parse(t.date); const k=dt.getFullYear()*12+dt.getMonth(); if(k>=startKey&&k<=nowKey) total+=-t.amount; });
+  const n=(nowKey-startKey)+1;
+  return n>0? total/n : 0;
+}
+function invMonthlyRate(){ const a=parseFloat(DB.invest&&DB.invest.annualGrowth)||0; return Math.pow(1+a/100,1/12)-1; }
+function monthsFromLastSub(target){
+  const subs=portfolioSubs(); if(!subs.length) return 0;
+  const sd=parse(subs[subs.length-1].date);
+  return Math.max(0,(target.getFullYear()*12+target.getMonth())-(sd.getFullYear()*12+sd.getMonth()));
+}
+function projectMonths(m){
+  const subs=portfolioSubs(); if(!subs.length) return null;
+  const P=+subs[subs.length-1].amount||0, C=avgMonthlyInvestment(), r=invMonthlyRate();
+  if(m<0) m=0;
+  return Math.abs(r)<1e-12 ? P+C*m : P*Math.pow(1+r,m)+C*((Math.pow(1+r,m)-1)/r);
+}
+function renderInvPortList(){
+  const subs=portfolioSubs();
+  document.getElementById("invPortList").innerHTML = subs.length ? subs.slice().reverse().map(h=>{
+    return `<div class="catrow"><div class="catrow-main"><span class="cname">${fmtDateY(h.date)}</span><span style="font-weight:700">${gbp0(h.amount)}</span><button class="btn danger" style="width:auto;padding:5px 9px;margin-left:auto" onclick="delPortfolio('${h.id}')">Delete</button></div></div>`;
+  }).join("") : '<div class="tiny muted" style="padding:2px 0">No portfolio total submitted yet.</div>';
+}
+function renderInvProjection(){
+  invInit();
+  const subs=portfolioSubs();
+  const proj=document.getElementById("invProj"), assump=document.getElementById("invAssump");
+  if(!subs.length){ assump.textContent=""; proj.innerHTML='<div class="tiny muted">Submit your current portfolio total above to see projections.</div>'; return; }
+  const last=subs[subs.length-1], C=avgMonthlyInvestment(), a=parseFloat(DB.invest.annualGrowth);
+  assump.innerHTML = `From <b>${gbp0(last.amount)}</b> on ${fmtDateY(last.date)}, investing about <b>${gbp0(C)}/mo</b>${(a==null||isNaN(a))?', growth rate not set yet':`, growing at <b>${a}%/yr</b>`}.`;
+  const now=new Date();
+  const rows=[
+    {label:"In 1 year", date:new Date(now.getFullYear()+1,now.getMonth(),now.getDate())},
+    {label:"In 2 years", date:new Date(now.getFullYear()+2,now.getMonth(),now.getDate())},
+    {label:"In 5 years", date:new Date(now.getFullYear()+5,now.getMonth(),now.getDate())},
+    {label:"In 10 years", date:new Date(now.getFullYear()+10,now.getMonth(),now.getDate())}
+  ];
+  if(DB.invest.birthdate){ const b=parse(DB.invest.birthdate); const ret=new Date(b.getFullYear()+67,b.getMonth(),b.getDate()); rows.push({label:"Retirement (67)", date:ret, ret:true}); }
+  proj.innerHTML=rows.map(rw=>{
+    const m=monthsFromLastSub(rw.date), fv=projectMonths(m);
+    const sub = rw.ret ? fmtDateY(ymd(rw.date)) : ("by "+fmtDateY(ymd(rw.date)));
+    return `<div class="spendrow"><span><b>${rw.label}</b> <span class="muted tiny">${sub}</span></span><span class="v">${gbp0(fv)}</span></div>`;
+  }).join("");
+}
+function renderInvest(){
+  invInit();
+  const dob=document.getElementById("invDob"); if(dob) dob.value=DB.invest.birthdate||"";
+  const stk=document.getElementById("invStock"); if(stk) stk.value=DB.invest.stock||"";
+  const gr=document.getElementById("invGrowth"); if(gr) gr.value=(DB.invest.annualGrowth==null?"":DB.invest.annualGrowth);
+  const note=document.getElementById("invRetNote");
+  if(note){
+    if(DB.invest.birthdate){ const b=parse(DB.invest.birthdate); const ret=new Date(b.getFullYear()+67,b.getMonth(),b.getDate()); const yrs=Math.max(0,((ret-new Date())/(365.25*86400000))); note.textContent="You turn 67 on "+fmtDateY(ymd(ret))+" — about "+yrs.toFixed(1)+" years away."; }
+    else note.textContent="Add your date of birth to project to retirement (age 67).";
+  }
+  const msg=document.getElementById("invFetchMsg");
+  if(msg && DB.invest.growthAuto) msg.textContent="Rate estimated from "+(DB.invest.stock||"the stock")+"'s last 12 months.";
+  renderInvPortList();
+  renderInvProjection();
+}
+async function fetchGrowth(){
+  invInit();
+  const code=(DB.invest.stock||"").trim();
+  const msg=document.getElementById("invFetchMsg");
+  if(!code){ if(msg) msg.textContent="Enter a stock code first."; return; }
+  if(msg) msg.textContent="Fetching last 12 months…";
+  const tries=[code, code+".uk", code+".us"];
+  for(const sym of tries){
+    try{
+      const res=await fetch("https://stooq.com/q/d/l/?s="+encodeURIComponent(sym.toLowerCase())+"&i=m");
+      if(!res.ok) continue;
+      const txt=await res.text();
+      if(/N\/D/i.test(txt) || txt.indexOf(",")<0) continue;
+      const rows=txt.trim().split(/\r?\n/).slice(1).map(l=>l.split(","));
+      const closes=rows.map(r=>parseFloat(r[4])).filter(v=>!isNaN(v)&&v>0);
+      if(closes.length<3) continue;
+      const last=closes.slice(-13);
+      let rets=[]; for(let i=1;i<last.length;i++){ rets.push(last[i]/last[i-1]-1); }
+      const avgM=rets.reduce((x,y)=>x+y,0)/rets.length;
+      const annual=(Math.pow(1+avgM,12)-1)*100;
+      DB.invest.annualGrowth=Math.round(annual*100)/100; DB.invest.growthAuto=true; save();
+      document.getElementById("invGrowth").value=DB.invest.annualGrowth;
+      if(msg) msg.textContent="Got it — "+(avgM*100).toFixed(2)+"%/mo avg ≈ "+DB.invest.annualGrowth+"%/yr from "+sym.toUpperCase()+".";
+      renderInvProjection();
+      return;
+    }catch(e){ /* try next */ }
+  }
+  if(msg) msg.textContent="Couldn't fetch automatically (the data source is likely blocked in the browser). Please type the annual growth rate in below.";
+}
+
 function refreshAll(){ renderDash(); renderRec(); updPendBadge(); updOrphanBadge(); if(document.getElementById("page-tx").classList.contains("on")) renderTx(); }
 function updOrphanBadge(){ const n=DB.txns?DB.txns.filter(isOrphan).length:0; const b=document.getElementById("orphanBadge"); if(b){ b.style.display=n>0?"flex":"none"; b.textContent=n; } }
 function updPendBadge(){
