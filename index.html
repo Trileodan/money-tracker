@@ -107,6 +107,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transf
 .realloc select{padding:9px;}
 
 .badge{position:absolute;top:4px;right:50%;transform:translateX(20px);background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
+.tabdot{position:absolute;top:5px;right:50%;transform:translateX(16px);width:9px;height:9px;border-radius:50%;background:var(--red);}
 
 /* tab bar */
 .tabbar{position:fixed;top:0;left:0;right:0;background:rgba(15,23,42,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;padding:calc(4px + env(safe-area-inset-top)) 4px 6px;z-index:60;}
@@ -253,17 +254,18 @@ canvas{max-width:100%;}
       </div>
       <button class="btn" onclick="addTx()">Save transaction</button>
     </div>
-  </div>
 
-  <!-- ============ RECURRING / PENDING ============ -->
-  <div class="page" id="page-rec">
-    <h1>Monthly &amp; pending</h1>
-    <p class="sub">Confirm or reject items that are due.</p>
-    <h2 style="margin-top:8px">Due now</h2>
-    <div id="pendList"></div>
-    <h2>Recurring templates</h2>
-    <p class="sub">Each appears for confirmation on its schedule — weekly, fortnightly, monthly or annually. Tap Edit to change one.</p>
-    <div class="card" id="recList"></div>
+    <div class="acc" id="accMonthly">
+      <div class="acc-head" onclick="toggleAcc('accMonthly')"><span>Monthly &amp; pending</span><span class="dot" id="pendDot" style="background:var(--red);display:none;margin-left:6px"></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="sub" style="margin-top:2px">Confirm or reject items that are due, and manage your repeating payments.</p>
+        <h2 style="margin-top:8px">Due now</h2>
+        <div id="pendList"></div>
+        <h2>Recurring templates</h2>
+        <p class="sub">Each appears for confirmation on its schedule — weekly, fortnightly, monthly or annually. Tap Edit to change one.</p>
+        <div class="card" id="recList"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ============ TRANSACTIONS ============ -->
@@ -435,8 +437,7 @@ canvas{max-width:100%;}
 <div class="tabbar" id="tabbar">
   <button class="on" data-tab="dash" onclick="go('dash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h8V3H3zM13 21h8V8h-8zM3 21h8v-5H3z"/></svg>Dashboard</button>
   <button data-tab="tx" onclick="go('tx')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History<span class="badge" id="orphanBadge" style="display:none">0</span></button>
-  <button data-tab="add" onclick="go('add')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add</button>
-  <button data-tab="rec" onclick="go('rec')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M21 4v4h-4M3 20v-4h4"/></svg>Monthly<span class="badge" id="pendBadge" style="display:none">0</span></button>
+  <button data-tab="add" onclick="go('add')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add<span class="tabdot" id="addDot" style="display:none"></span></button>
   <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 5h6v6"/></svg>Savings</button>
   <button data-tab="set" onclick="go('set')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
 </div>
@@ -1424,7 +1425,7 @@ function go(tab){
   document.getElementById("page-"+tab).classList.add("on");
   document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
   if(tab==="dash") renderDash();
-  if(tab==="rec") renderRec();
+  if(tab==="add"){ renderRec(); updPendBadge(); if(pendingItems().length>0){ const a=document.getElementById("accMonthly"); if(a) a.classList.add("open"); } }
   if(tab==="tx"){ renderTxFilter(); renderTx(); }
   if(tab==="set") renderSettings();
   if(tab==="invest") renderInvest();
@@ -1576,8 +1577,9 @@ function renderInvest(){
 function refreshAll(){ renderDash(); renderRec(); updPendBadge(); updOrphanBadge(); if(document.getElementById("page-tx").classList.contains("on")) renderTx(); }
 function updOrphanBadge(){ const n=DB.txns?DB.txns.filter(isOrphan).length:0; const b=document.getElementById("orphanBadge"); if(b){ b.style.display=n>0?"flex":"none"; b.textContent=n; } }
 function updPendBadge(){
-  const n=pendingItems().length; const b=document.getElementById("pendBadge");
-  b.style.display=n>0?"flex":"none"; b.textContent=n;
+  const n=pendingItems().length;
+  const dot=document.getElementById("addDot"); if(dot) dot.style.display=n>0?"block":"none";
+  const pd=document.getElementById("pendDot"); if(pd) pd.style.display=n>0?"inline-block":"none";
 }
 let toastT;
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),1600); }
