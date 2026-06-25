@@ -133,6 +133,14 @@ canvas{max-width:100%;}
 .tcfg label{flex:1;margin:0;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0;}
 .tcfg input{width:90px;flex:none;text-align:right;padding:9px;}
 .note{font-size:12px;color:var(--muted);line-height:1.5;}
+.acc{border:1px solid var(--line);border-radius:16px;margin-bottom:12px;overflow:hidden;background:var(--card);}
+.acc-head{display:flex;align-items:center;gap:8px;padding:15px 16px;cursor:pointer;font-weight:700;font-size:16px;user-select:none;}
+.acc-head .chev{margin-left:auto;width:20px;height:20px;flex:none;transition:transform .2s;}
+.acc.open .acc-head .chev{transform:rotate(180deg);}
+.acc-body{display:none;padding:2px 14px 8px;}
+.acc.open .acc-body{display:block;}
+.acc-body .card{background:var(--card2);}
+.bigfig{font-size:30px;font-weight:800;letter-spacing:-.5px;}
 .authscreen{position:fixed;inset:0;background:var(--bg);z-index:300;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:calc(40px + env(safe-area-inset-top)) 16px 30px;}
 .authscreen.on{display:flex;}
 .authbox{width:100%;max-width:360px;}
@@ -344,8 +352,43 @@ canvas{max-width:100%;}
 
   <!-- ============ INVESTMENT PLANNER ============ -->
   <div class="page" id="page-invest">
-    <h1>Investment planner</h1>
-    <p class="sub">Track where your portfolio is and where it's heading.</p>
+    <h1>Savings</h1>
+    <p class="sub">Track your savings and your investments.</p>
+
+    <div class="acc open" id="accSav">
+      <div class="acc-head" onclick="toggleAcc('accSav')"><span>Savings</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+
+        <div class="card">
+          <h2 style="margin-top:2px">Current balance</h2>
+          <p class="note">Enter your savings balance every so often, dated. Anything you log under the <b>Savings</b> category after that date is added on automatically.</p>
+          <div id="savBalList" style="margin-top:6px"></div>
+          <div class="row" style="margin-top:10px">
+            <div><label>Date</label><input type="date" id="savBalDate"></div>
+            <div><label>Balance (£)</label><input type="number" id="savBalAmt" inputmode="decimal" placeholder="£"></div>
+          </div>
+          <button class="btn sec" style="margin-top:8px" onclick="addSavBal()">Save balance</button>
+        </div>
+
+        <div class="card">
+          <h2 style="margin-top:2px">Savings target</h2>
+          <p class="note">The amount you want your savings to reach. We use your monthly <b>Savings</b> category target to estimate how long it'll take.</p>
+          <div class="field" style="margin-top:6px"><label>Target (£)</label><input type="number" id="savTarget" inputmode="decimal" placeholder="£" onchange="saveSavTarget()"></div>
+        </div>
+
+        <div class="card">
+          <h2 style="margin-top:2px">Where you're at</h2>
+          <div class="muted tiny">Current savings</div>
+          <div class="bigfig" id="savTotal">£0</div>
+          <div id="savGoal" style="margin-top:12px"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="acc" id="accInv">
+      <div class="acc-head" onclick="toggleAcc('accInv')"><span>Investments</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
 
     <div class="card">
       <h2 style="margin-top:2px">Your details</h2>
@@ -381,6 +424,9 @@ canvas{max-width:100%;}
       <div id="invProj" style="margin-top:8px"></div>
       <p class="tiny muted" style="margin-top:10px">Estimates only — not financial advice. Markets go down as well as up.</p>
     </div>
+
+      </div>
+    </div>
   </div>
 
 </div>
@@ -391,7 +437,7 @@ canvas{max-width:100%;}
   <button data-tab="tx" onclick="go('tx')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History<span class="badge" id="orphanBadge" style="display:none">0</span></button>
   <button data-tab="add" onclick="go('add')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add</button>
   <button data-tab="rec" onclick="go('rec')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M21 4v4h-4M3 20v-4h4"/></svg>Monthly<span class="badge" id="pendBadge" style="display:none">0</span></button>
-  <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 5h6v6"/></svg>Invest</button>
+  <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 5h6v6"/></svg>Savings</button>
   <button data-tab="set" onclick="go('set')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
 </div>
 
@@ -608,6 +654,8 @@ function load(){
   })();
   if(DB.regularIncome) DB.regularIncome.freq="monthly";   // wages are monthly only now
   if(!DB.invest || typeof DB.invest!=="object") DB.invest={birthdate:"",portfolio:[],stock:"",annualGrowth:null,growthAuto:false};
+  if(!DB.savings || typeof DB.savings!=="object") DB.savings={balances:[],target:null};
+  if(!Array.isArray(DB.savings.balances)) DB.savings.balances=[];
   if(!Array.isArray(DB.invest.portfolio)) DB.invest.portfolio=[];
   // migrate: dated income history (one take-home figure per effective month)
   if(!Array.isArray(DB.incomeHistory)){
@@ -1464,7 +1512,56 @@ function renderInvProjection(){
     return `<div class="spendrow"><span><b>${rw.label}</b> <span class="muted tiny">${sub}</span></span><span class="v">${gbp0(fv)}</span></div>`;
   }).join("");
 }
+function toggleAcc(id){ const e=document.getElementById(id); if(e) e.classList.toggle("open"); }
+function savInit(){ if(!DB.savings||typeof DB.savings!=="object") DB.savings={balances:[],target:null}; if(!Array.isArray(DB.savings.balances)) DB.savings.balances=[]; }
+function savBalances(){ savInit(); return DB.savings.balances.slice().sort((a,b)=>a.date<b.date?-1:1); }
+function savCat(){ return allCats().find(c=>c.name && c.name.toLowerCase()==="savings"); }
+function savMonthlyTarget(){ const c=savCat(); return c?(+c.amount||0):0; }
+// net Savings-category payments after a balance date (outflows add, refunds subtract)
+function savContribSince(dateStr){ const cut=dateStr?parse(dateStr):null; let t=0; (DB.txns||[]).forEach(x=>{ if(!x.category||x.category.toLowerCase()!=="savings") return; if(cut && parse(x.date)<=cut) return; t+=-x.amount; }); return t; }
+function savingsTotal(){ savInit(); const b=savBalances(); if(b.length){ const last=b[b.length-1]; return (+last.amount||0)+savContribSince(last.date); } return savContribSince(null); }
+function addSavBal(){
+  savInit();
+  const date=document.getElementById("savBalDate").value||todayISO();
+  const amt=parseFloat(document.getElementById("savBalAmt").value);
+  if(isNaN(amt)){ toast("Enter your balance"); return; }
+  const ex=DB.savings.balances.find(h=>h.date===date);
+  if(ex) ex.amount=amt; else DB.savings.balances.push({id:"sb"+Date.now()+Math.random().toString(36).slice(2,5), date, amount:amt});
+  save(); document.getElementById("savBalAmt").value="";
+  renderSavings(); toast("Balance saved ✓");
+}
+function delSavBal(id){ savInit(); DB.savings.balances=DB.savings.balances.filter(h=>h.id!==id); save(); renderSavings(); }
+function saveSavTarget(){ savInit(); const v=parseFloat(document.getElementById("savTarget").value); DB.savings.target=isNaN(v)?null:v; save(); renderSavings(); }
+function renderSavBalList(){
+  const b=savBalances();
+  document.getElementById("savBalList").innerHTML = b.length ? b.slice().reverse().map(h=>
+    `<div class="catrow"><div class="catrow-main"><span class="cname">${fmtDateY(h.date)}</span><span style="font-weight:700">${gbp0(h.amount)}</span><button class="btn danger" style="width:auto;padding:5px 9px;margin-left:auto" onclick="delSavBal('${h.id}')">Delete</button></div></div>`
+  ).join("") : '<div class="tiny muted" style="padding:2px 0">No balance entered yet.</div>';
+}
+function renderSavings(){
+  savInit();
+  renderSavBalList();
+  const ti=document.getElementById("savTarget"); if(ti) ti.value=(DB.savings.target==null?"":DB.savings.target);
+  const total=savingsTotal();
+  const tEl=document.getElementById("savTotal"); if(tEl) tEl.textContent=gbp0(total);
+  const goal=document.getElementById("savGoal"); if(!goal) return;
+  const target=parseFloat(DB.savings.target), monthly=savMonthlyTarget();
+  if(!(target>0)){ goal.innerHTML='<div class="tiny muted">Set a target above to see how long it\'ll take to reach it.</div>'; return; }
+  const tgtRow=`<div class="spendrow"><span><b>Target</b></span><span class="v">${gbp0(target)}</span></div>`;
+  if(total>=target){ goal.innerHTML=tgtRow+`<div class="tiny" style="color:var(--green);margin-top:8px;font-weight:700">🎉 You've reached your savings target!</div>`; return; }
+  const short=target-total;
+  const shortRow=`<div class="spendrow"><span><b>Still to save</b></span><span class="v">${gbp0(short)}</span></div>`;
+  if(!(monthly>0)){ goal.innerHTML=tgtRow+shortRow+`<div class="tiny muted" style="margin-top:8px">Set a monthly amount on your <b>Savings</b> category (in Settings) to estimate how long it'll take.</div>`; return; }
+  const months=Math.ceil(short/monthly);
+  const yrs=Math.floor(months/12), rem=months%12;
+  const dur = months<12 ? months+" month"+(months===1?"":"s") : (yrs+" yr"+(yrs===1?"":"s")+(rem?" "+rem+" mo":""));
+  const now=new Date(); const td=new Date(now.getFullYear(),now.getMonth()+months,now.getDate());
+  goal.innerHTML=tgtRow+shortRow+
+    `<div class="spendrow"><span><b>Time to target</b> <span class="muted tiny">at ${gbp0(monthly)}/mo</span></span><span class="v">${dur}</span></div>`+
+    `<div class="tiny muted" style="margin-top:8px">Paying in ${gbp0(monthly)}/month, you'll hit ${gbp0(target)} around <b>${fmtDateY(ymd(td))}</b>.</div>`;
+}
 function renderInvest(){
+  renderSavings();
   invInit();
   populateDob();
   const gr=document.getElementById("invGrowth"); if(gr) gr.value=(DB.invest.annualGrowth==null?"":DB.invest.annualGrowth);
