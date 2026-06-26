@@ -1070,18 +1070,21 @@ function addTx(){
 
 /* ============================================================= RECURRING / PENDING */
 function pendingItems(){
-  // for each template, every due date up to today that hasn't been resolved -> pending
+  // one row per template: its earliest UNRESOLVED occurrence (overdue or the next upcoming one),
+  // so the list always shows each payment's next date. Action it and the following occurrence
+  // takes its place, re-sorting further down the list. Sorted soonest -> furthest away.
   const now=new Date(); now.setHours(0,0,0,0);
+  const ahead=new Date(now); ahead.setFullYear(ahead.getFullYear()+2);
   const items=[];
   DB.recurring.forEach(r=>{
-    occurrences(r, now).forEach(due=>{
-      const key=r.id+"|"+ymd(due);
-      if(!DB.resolved[key]) items.push({r, key, date:ymd(due)});
-    });
+    const occ=occurrences(r, ahead).map(ymd);
+    for(let i=0;i<occ.length;i++){ const key=r.id+"|"+occ[i]; if(!DB.resolved[key]){ items.push({r, key, date:occ[i]}); break; } }
   });
   items.sort((a,b)=>a.date<b.date?-1:1);
   return items;
 }
+// items whose due date has arrived (on or before today) — these are what actually needs actioning
+function dueItems(){ const t=ymd(new Date()); return pendingItems().filter(p=>p.date<=t); }
 // next upcoming due date for a template (after today), for display
 function nextDue(r){
   const now=new Date(); now.setHours(0,0,0,0);
@@ -1091,18 +1094,24 @@ function nextDue(r){
 }
 function renderRec(){
   const pend=pendingItems();
+  const today=ymd(new Date());
   const pl=document.getElementById("pendList");
-  if(pend.length===0) pl.innerHTML='<div class="empty">Nothing due right now. 🎉</div>';
-  else pl.innerHTML=pend.map(p=>`<div class="pend">
+  if(pend.length===0) pl.innerHTML='<div class="empty">Nothing scheduled right now. 🎉</div>';
+  else pl.innerHTML=pend.map(p=>{
+      const due=p.date<=today;
+      const chip = due
+        ? '<span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;letter-spacing:.5px">DUE</span>'
+        : '<span style="background:var(--card);color:var(--muted);border:1px solid var(--line);font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;letter-spacing:.5px">UPCOMING</span>';
+      return `<div class="pend"${due?'':' style="opacity:.82"'}>
       <div class="tx" style="border:none;padding:0">
-        <div class="l"><div class="d">${p.r.desc}</div><div class="s">${fmtDate(p.date)} · ${p.r.category}</div></div>
+        <div class="l"><div class="d">${p.r.desc} ${chip}</div><div class="s">${due?"Due ":""}${fmtDate(p.date)} · ${p.r.category}</div></div>
         <div class="r"><div class="a ${p.r.flow==='in'?'pos':'neg'}">${p.r.flow==='in'?'+':'-'}${gbp(p.r.amount)}</div></div>
       </div>
       <div class="acts">
         <button class="confirm" onclick="resolve('${p.key}','${p.r.id}','${p.date}',true)">Confirm</button>
         <button class="reject" onclick="resolve('${p.key}','${p.r.id}','${p.date}',false)">Reject</button>
       </div>
-    </div>`).join("");
+    </div>`;}).join("");
 
   const rl=document.getElementById("recList");
   if(DB.recurring.length===0) rl.innerHTML='<div class="empty">No recurring items yet. Tick "Repeat this transaction" when adding one.</div>';
@@ -1425,7 +1434,7 @@ function go(tab){
   document.getElementById("page-"+tab).classList.add("on");
   document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
   if(tab==="dash") renderDash();
-  if(tab==="add"){ renderRec(); updPendBadge(); if(pendingItems().length>0){ const a=document.getElementById("accMonthly"); if(a) a.classList.add("open"); } }
+  if(tab==="add"){ renderRec(); updPendBadge(); if(dueItems().length>0){ const a=document.getElementById("accMonthly"); if(a) a.classList.add("open"); } }
   if(tab==="tx"){ renderTxFilter(); renderTx(); }
   if(tab==="set") renderSettings();
   if(tab==="invest") renderInvest();
@@ -1577,7 +1586,7 @@ function renderInvest(){
 function refreshAll(){ renderDash(); renderRec(); updPendBadge(); updOrphanBadge(); if(document.getElementById("page-tx").classList.contains("on")) renderTx(); }
 function updOrphanBadge(){ const n=DB.txns?DB.txns.filter(isOrphan).length:0; const b=document.getElementById("orphanBadge"); if(b){ b.style.display=n>0?"flex":"none"; b.textContent=n; } }
 function updPendBadge(){
-  const n=pendingItems().length;
+  const n=dueItems().length;
   const dot=document.getElementById("addDot"); if(dot) dot.style.display=n>0?"block":"none";
   const pd=document.getElementById("pendDot"); if(pd) pd.style.display=n>0?"inline-block":"none";
 }
