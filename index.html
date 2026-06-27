@@ -1494,6 +1494,22 @@ function projectMonths(m){
   if(m<0) m=0;
   return Math.abs(r)<1e-12 ? P+C*m : P*Math.pow(1+r,m)+C*((Math.pow(1+r,m)-1)/r);
 }
+// estimated value as of today: last submission grown to today, plus the monthly amount paid in
+// on the 1st of each month since, each grown by the rate of growth for the time it's been invested
+function projectToday(){
+  const subs=portfolioSubs(); if(!subs.length) return null;
+  const last=subs[subs.length-1];
+  const sd=parse(last.date);
+  const today=new Date(); today.setHours(0,0,0,0);
+  const a=parseFloat(DB.invest.annualGrowth); const ann=isNaN(a)?0:a/100;
+  const C=avgMonthlyInvestment();
+  const dayMs=86400000, yr=365.25;
+  const grow=from=>Math.pow(1+ann, Math.max(0,(today-from)/dayMs)/yr);
+  let val=(+last.amount||0)*grow(sd);
+  let dpt=new Date(sd.getFullYear(), sd.getMonth()+1, 1), g=0;   // first 1st-of-month after the submission
+  while(dpt<=today && g++<600){ val+=C*grow(dpt); dpt=new Date(dpt.getFullYear(), dpt.getMonth()+1, 1); }
+  return val;
+}
 function renderInvPortList(){
   const subs=portfolioSubs();
   document.getElementById("invPortList").innerHTML = subs.length ? subs.slice().reverse().map(h=>{
@@ -1515,7 +1531,8 @@ function renderInvProjection(){
     {label:"In 10 years", date:new Date(now.getFullYear()+10,now.getMonth(),now.getDate())}
   ];
   if(DB.invest.birthdate){ const b=parse(DB.invest.birthdate); const ret=new Date(b.getFullYear()+67,b.getMonth(),b.getDate()); rows.push({label:"Retirement (67)", date:ret, ret:true}); }
-  proj.innerHTML=rows.map(rw=>{
+  const todayRow = `<div class="spendrow"><span><b>Today</b> <span class="muted tiny">est. as of ${fmtDateY(ymd(new Date()))}</span></span><span class="v">${gbp0(projectToday())}</span></div>`;
+  proj.innerHTML= todayRow + rows.map(rw=>{
     const m=monthsFromLastSub(rw.date), fv=projectMonths(m);
     const sub = rw.ret ? fmtDateY(ymd(rw.date)) : ("by "+fmtDateY(ymd(rw.date)));
     return `<div class="spendrow"><span><b>${rw.label}</b> <span class="muted tiny">${sub}</span></span><span class="v">${gbp0(fv)}</span></div>`;
