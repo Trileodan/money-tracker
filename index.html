@@ -134,6 +134,7 @@ canvas{max-width:100%;}
 .tcfg label{flex:1;margin:0;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0;}
 .tcfg input{width:90px;flex:none;text-align:right;padding:9px;}
 .note{font-size:12px;color:var(--muted);line-height:1.5;}
+.nag{background:rgba(245,158,11,.12);border:1px solid var(--amber);border-radius:14px;padding:13px 14px;margin-bottom:12px;font-size:13px;color:var(--txt);}
 .acc{border:1px solid var(--line);border-radius:16px;margin-bottom:12px;overflow:hidden;background:var(--card);}
 .acc-head{display:flex;align-items:center;gap:8px;padding:15px 16px;cursor:pointer;font-weight:700;font-size:16px;user-select:none;}
 .acc-head .chev{margin-left:auto;width:20px;height:20px;flex:none;transition:transform .2s;}
@@ -163,6 +164,13 @@ canvas{max-width:100%;}
   <div class="page on" id="page-dash">
     <h1>Dashboard</h1>
     <p class="sub" id="dashSub"></p>
+    <div id="backupNag" class="nag" style="display:none">
+      <span id="backupNagTxt"></span>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn sec" style="width:auto;padding:8px 12px;font-size:13px" onclick="exportData()">Back up now</button>
+        <button class="btn sec" style="width:auto;padding:8px 12px;font-size:13px" onclick="dismissNag()">Later</button>
+      </div>
+    </div>
     <div class="periods" id="periodSel"></div>
     <div id="customRange" style="display:none" class="card">
       <div class="row">
@@ -339,10 +347,12 @@ canvas{max-width:100%;}
     </div>
     <div class="card">
       <h2 style="margin-top:2px">Your data</h2>
-      <p class="note">Everything is stored privately on this device only. Nothing is uploaded.</p>
-      <button class="btn sec" style="margin-top:10px" onclick="exportData()">Export backup (.json)</button>
+      <p class="note">Stored privately on this device only — nothing is uploaded. A second protected copy is kept automatically and restored if your browser ever clears its storage.</p>
+      <p class="note" id="backupStatus" style="margin-top:8px"></p>
+      <button class="btn sec" style="margin-top:6px" onclick="exportData()">Export backup (.json)</button>
       <button class="btn sec" style="margin-top:8px" onclick="document.getElementById('importFile').click()">Import backup</button>
       <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+      <button class="btn sec" style="margin-top:8px" onclick="restoreSnapshot()">Restore an earlier copy</button>
       <button class="btn danger" style="margin-top:8px" onclick="resetAll()">Erase all data</button>
     </div>
     <div class="card">
@@ -593,10 +603,20 @@ const SEED_REC = [];
 const LS = "moneytracker_v1";
 const SS = "moneytracker_session";
 let DB;
+/* ---- durable second copy in IndexedDB, so an evicted/cleared localStorage no longer means lost data ---- */
+let JUST_SEEDED=false, _idbHold=true, NAG_DISMISSED=false;
+const IDB_NAME="moneytracker_db", IDB_STORE="kv";
+function idbOpen(){ return new Promise((res,rej)=>{ try{ if(typeof indexedDB==="undefined") return rej("no-idb"); const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>{ try{ r.result.createObjectStore(IDB_STORE); }catch(e){} }; r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }catch(e){ rej(e); } }); }
+function idbGet(key){ return idbOpen().then(db=>new Promise((res,rej)=>{ const rq=db.transaction(IDB_STORE,"readonly").objectStore(IDB_STORE).get(key); rq.onsuccess=()=>res(rq.result==null?null:rq.result); rq.onerror=()=>rej(rq.error); })).catch(()=>null); }
+function idbPut(key,val){ return idbOpen().then(db=>new Promise((res,rej)=>{ const rq=db.transaction(IDB_STORE,"readwrite").objectStore(IDB_STORE).put(val,key); rq.onsuccess=()=>res(true); rq.onerror=()=>rej(rq.error); })).catch(()=>false); }
+function looksValid(o){ return !!(o && typeof o==="object" && (Array.isArray(o.txns)||Array.isArray(o.users)||o.seeded)); }
+function deepCopy(o){ try{ return JSON.parse(JSON.stringify(o)); }catch(e){ return o; } }
 function load(){
+  JUST_SEEDED=false;
   const raw = localStorage.getItem(LS);
-  if(raw){ try{ DB = JSON.parse(raw); }catch(e){ DB=null; } }
+  if(raw){ try{ DB = JSON.parse(raw); }catch(e){ try{ localStorage.setItem(LS+"_corrupt", raw); }catch(_){ } DB=null; } }
   if(!DB){
+    JUST_SEEDED=true;
     DB = {
       txns: SEED.map((t,i)=>({id:"s"+i, date:t.date, desc:t.desc, amount:t.amount, category:t.category})),
       recurring: SEED_REC.map((r,i)=>({id:"r"+i, ...r, start:"2026-06"})),
@@ -666,7 +686,12 @@ function load(){
   if(!Array.isArray(DB.users)) DB.users=[];
   save();   // persist migrations so renamed categories are durable
 }
-function save(){ localStorage.setItem(LS, JSON.stringify(DB)); }
+function save(){ try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){} mirrorIDB(); }
+let _mirrorT;
+function mirrorIDB(){ if(_idbHold) return; clearTimeout(_mirrorT); _mirrorT=setTimeout(()=>{ const c=deepCopy(DB); idbPut("db",c); pushSnapshot(c); }, 350); }
+function pushSnapshot(c){
+  idbGet("snaps").then(arr=>{ arr=Array.isArray(arr)?arr:[]; const t=todayISO(); if(arr.length&&arr[arr.length-1].d===t) arr[arr.length-1]={d:t,db:c}; else arr.push({d:t,db:c}); while(arr.length>10) arr.shift(); idbPut("snaps",arr); });
+}
 
 /* ============================================================= HELPERS */
 const gbp = n => (n<0?"-£":"£") + Math.abs(n).toLocaleString("en-GB",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1308,6 +1333,7 @@ function saveTxEdit(){
 
 /* ============================================================= SETTINGS */
 function renderSettings(){
+  updBackupStatus();
   renderCatCfg();
   populateIncomePickers();
   renderIncomeList();
@@ -1420,12 +1446,13 @@ function updRegEquiv(){
 function exportData(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="moneytracker-backup-"+todayISO()+".json"; a.click();
+  DB.lastBackup=todayISO(); save(); maybeBackupReminder(); updBackupStatus();
 }
 function importData(e){
   const f=e.target.files[0]; if(!f) return;
   const r=new FileReader(); r.onload=()=>{ try{ DB=JSON.parse(r.result); save(); load(); CURRENT=null; try{ localStorage.removeItem(SS); }catch(e){} toast("Imported ✓"); requireAuth(); }catch(err){ toast("Bad file"); } }; r.readAsText(f);
 }
-function resetAll(){ if(confirm("Erase ALL data on this device? This cannot be undone.")){ localStorage.removeItem(LS); try{ localStorage.removeItem(SS); }catch(e){} DB=null; CURRENT=null; load(); requireAuth(); toast("Erased"); } }
+function resetAll(){ if(confirm("Erase ALL data on this device? This cannot be undone.")){ localStorage.removeItem(LS); try{ localStorage.removeItem(SS); }catch(e){} DB=null; CURRENT=null; _idbHold=false; try{ idbPut("db",null); idbPut("snaps",[]); }catch(e){} load(); requireAuth(); toast("Erased"); } }
 
 /* ============================================================= NAV */
 function go(tab){
@@ -1730,6 +1757,54 @@ renderPeriods();
 renderDash();
 updPendBadge();
 requireAuth();   // show login / create-account overlay on open
+recoverIfNeeded();   // if storage was wiped, restore from the durable IndexedDB copy before anything else
+
+/* ---- recovery + backup reminders ---- */
+async function recoverIfNeeded(){
+  let idb=null; try{ idb=await idbGet("db"); }catch(e){}
+  if(JUST_SEEDED && looksValid(idb)){
+    // localStorage came back empty/corrupt but the durable copy survived -> restore it
+    DB=deepCopy(idb); _idbHold=false; save(); load();
+    restoreSession(); renderPeriods(); renderDash(); updPendBadge(); requireAuth();
+    setTimeout(()=>toast("Recovered your data from backup ✓"),400);
+  } else {
+    _idbHold=false; try{ await idbPut("db", deepCopy(DB)); }catch(e){}
+  }
+  maybeBackupReminder();
+}
+function daysSince(dstr){ return dstr ? Math.floor((Date.now()-parse(dstr).getTime())/86400000) : Infinity; }
+function maybeBackupReminder(){
+  const nag=document.getElementById("backupNag"); if(!nag) return;
+  if(NAG_DISMISSED || !DB){ nag.style.display="none"; return; }
+  const lb=DB.lastBackup, days=daysSince(lb);
+  if(days>=7){
+    nag.style.display="block";
+    document.getElementById("backupNagTxt").innerHTML = (lb!=null)
+      ? `It's been <b>${days} days</b> since your last backup. Export one so a browser storage reset can't cost you any entries.`
+      : `Keep your data safe: export a backup now and then. If your browser ever clears its storage you can restore in seconds.`;
+  } else nag.style.display="none";
+}
+function dismissNag(){ NAG_DISMISSED=true; const n=document.getElementById("backupNag"); if(n) n.style.display="none"; }
+function updBackupStatus(){
+  const bs=document.getElementById("backupStatus"); if(!bs||!DB) return;
+  const lb=DB.lastBackup;
+  bs.innerHTML = lb
+    ? `Last file backup: <b>${fmtDateY(lb)}</b> · ${daysSince(lb)} day(s) ago.`
+    : `No file backup taken yet — exporting one and keeping it off your phone is the safest option.`;
+}
+async function restoreSnapshot(){
+  let arr=null; try{ arr=await idbGet("snaps"); }catch(e){}
+  if(!Array.isArray(arr)||!arr.length){ toast("No in-app backup found yet"); return; }
+  const t=todayISO(); let snap=null;
+  for(let i=arr.length-1;i>=0;i--){ if(arr[i].d<t){ snap=arr[i]; break; } }
+  if(!snap) snap=arr[arr.length-1];
+  if(confirm("Restore your data from the copy saved on "+fmtDateY(snap.d)+"? This replaces your current data on this device.")){
+    DB=deepCopy(snap.db); save(); load();
+    renderPeriods(); renderDash(); updPendBadge(); syncCatSelects();
+    if(document.getElementById("page-set").classList.contains("on")) renderSettings();
+    toast("Restored ✓");
+  }
+}
 (function(){try{var i192="data:image/png;base64,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";var i512="data:image/png;base64,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pts/frT0CEABAgBmsSRBAIxNTZQeAShAAMAsujr+Y4AixqYmS48AFCAAYBY9XZ3/n8gJNwCQUuf/6QaL0FPr/P9ETrgBgJQ6/083WIROfwlgcno6pksPARQhAAAgIQEAAAkJAABISAAAQEICAAASEgAAkJAAAICEBAAAJCQAACAhAQAACQkAAEhIAABAQgIAABISAACQkAAAgIQEAAAkJAAAICEBAAAJCQAASEgAAEBCAgAAEhIAAJCQAACAhAQAACQkAAAgodrw3bdPlx4C5nLHtpvjt867rvQYtKmv7386fuV7nys9BlSKGwAASEgAAEBCAgAAEhIAAJCQAACAhAQAACQkAAAgIQEAAAkJAABISAAAQEICAAASEgAAkJAAAICEBAAAJCQAACAhAQAACQkAAEhIAABAQgIAABISAACQkAAAgIQEAAAkJAAAICEBAAAJCQAASEgAAEBCAgAAEhIAAJCQAACAhAQAACQkAAAgIQEAAAkJAABISAAAQEICAAASEgAAkFBt+O7bp0sPAVX1R1tuit+74E2lx2iayenpWPO1O0qPARTgBgAAEhIAAJCQAACAhAQAACQkAAAgIQEAAAkJAABISAAAQEICAAASEgAAkJAAAICEBAAAJCQAACAhAQAACQkAAEhIAABAQgIAABISAACQkAAAgIQEAAAkJAAAICEBAAAJCQAASEgAAEBCAgAAEhIAAJCQAACAhAQAACQkAAAgIQEAAAkJAABISAAAQEICAAASEgAAkJAAAICEBAAAJCQAACAhAQAACQkAAEhIAABAQgIAABISAACQkAAAgIQEAAAkJAAAICEBAAAJCQAASEgAAEBCAgAAEhIAAJBQbfju26dLDwEz/d0Vvxzv3nBZ6TGgbu946M64/8CzpceAeXEDAAAJCQAASEgAAEBCAgAAEhIAAJCQAACAhAQAACQkAAAgIQEAAAkJAABISAAAQEICAAASEgAAkJAAAICEBAAAJCQAACAhAQAACQkAAEhIAABAQgIAABISAACQkAAAgIQEAAAkJAAAICEBAAAJCQAASEgAAEBCAgAAEhIAAJCQAACAhAQAACQkAAAgIQEAAAkJAABISAAAQEICAAASEgAAkJAAAICEBAAAJCQAACCh2vDdt0+XHgIAaC03AACQkAAAgIQEAAAkJAAAICEBAAAJCQAASEgAAEBCAgAAEhIAAJCQAACAhAQAACQkAAAgIQEAAAkJAABISAAAQEICAAASEgAAkJAAAICEBAAAJCQAACAhAQAACQkAAEhIAABAQgIAABISAACQkAAAgIQEAAAkJAAAICEBAAAJCQAASEgAAEBCAgAAEhIAAJCQAACAhAQAACQkAAAgoa6Dt3ysVnoIAKB1Dt7ysZobAABISAAAQEICAAASEgAAkJAAAICEBAAAJCQAACChroiTPw9YehAAoPlO7Xw3AACQkAAAgIQEAAAkJAAAIKHTAeCNgADQ2WbuejcAAJCQAACAhAQAACT0sgDwPgAA6Eyv3PFuAAAgIQEAAAkJAABI6FUB4H0AANBZzrTb3QAAQEICAAASOmMAeBkAADrDa+10NwAAkJAAAICEXjMAvAwAAO1ttl3uBgAAEhIAAJDQrAHgZQAAaE9z7XA3AACQ0JwB4BYAANrLfHa3GwAASEgAAEBC8woALwMAQHuY7852AwAACc07ANwCAEC11bOr3QAAQEJ1BYBbAACopnp3tBsAAEio7gBwCwAA1bKQ3ewGAAASWlAAuAUAgGpY6E52AwAACS04ANwCAEBZi9nFi7oBEAEAUMZid7CXAAAgoUUHgFsAAGitRuxeNwAAkFBDAsAtAAC0RqN2bsNuAEQAADRXI3etlwAAIKGGBoBbAABojkbv2IbfAIgAAGisZuzWprwEIAIAoDGatVO9BwAAEmpaALgFAIDFaeYubeoNgAgAgIVp9g5t+ksAIgAA6tOK3ek9AACQUEsCwC0AAMxPq3Zmy24ARAAAzK6Vu7KlLwGIAAA4s1bvyJa/B0AEAMDLldiNRd4EKAIA4KRSO7HYTwGIAACyK7kLi/4YoAgAIKvSO7D45wCUPgAAaLUq7L7iARBRjYMAgFaoys6rRABEVOdAAKBZqrTrKhMAEdU6GABopKrtuEoFQET1DggAFquKu61yARBRzYMCgIWo6k6rZABEVPfAAGC+qrzLKhsAEdU+OACYTdV3WKUDIKL6BwgAr9QOu6vyA840fPft06VnAIDX0g6L/5TK3wDM1E4HC0Au7baj2ioAItrvgAHofO24m9pu4Jm8JABASe24+E9puxuAmdr54AFob+2+g9o6ACLa/xsAQPvphN3T9g9gJi8JANBMnbD4T2n7G4CZOukbA0C1dNqO6agHM5PbAAAaodMW/ykd+aBmEgIALESnLv5TOuolgDPp9G8gAI2XYXd0/AOcyW0AALPJsPhPSfNAZxICAMyUafGfku4BzyQEAHLLuPhPSfvAZxICALlkXvynpD+AmYQAQGez+H/GQbwGMQDQGSz9M3MocxACAO3J4p+dw6mDGACoNkt//hzUAokBgGqw9BfGoTWAGABoLUt/8RxgEwgCgMay8BvPgbaAIACoj4XffA64EFEAcJJlX4ZDryiBAHQKC76a/h+ngqG41hk/vAAAAABJRU5ErkJggg==";var base=location.href.split(/[?#]/)[0];var dir=base.substring(0,base.lastIndexOf("/")+1);var m={name:"Money Tracker",short_name:"Money",start_url:base,scope:dir,display:"standalone",orientation:"portrait",background_color:"#0f172a",theme_color:"#0f172a",icons:[{src:i192,sizes:"192x192",type:"image/png",purpose:"any"},{src:i512,sizes:"512x512",type:"image/png",purpose:"any"},{src:i512,sizes:"512x512",type:"image/png",purpose:"maskable"}]};var bl=new Blob([JSON.stringify(m)],{type:"application/manifest+json"});var l=document.getElementById("mlink");if(l)l.href=URL.createObjectURL(bl);}catch(e){}})();
 </script>
 </body>
