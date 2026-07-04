@@ -328,6 +328,17 @@ canvas{max-width:100%;}
         <button class="btn sec" style="margin-top:8px" onclick="addCat()">Add category</button>
       </div>
     </div>
+    <div class="card">
+      <h2 style="margin-top:2px">Adjust a month's targets</h2>
+      <p class="note">Set one-off targets for a specific month — handy when you know you'll over- or under-spend somewhere. Leave a box blank to use the normal base target. Your base plan isn't changed, and only that month is affected.</p>
+      <div class="row" style="margin-top:6px">
+        <div><label>Month</label><select id="mtMonth" onchange="renderMonthTargets()"></select></div>
+        <div><label>Year</label><select id="mtYear" onchange="renderMonthTargets()"></select></div>
+      </div>
+      <p class="tiny" id="mtSummary" style="margin:10px 0 2px;font-weight:600"></p>
+      <div id="mtCfg" style="margin-top:6px"></div>
+      <button class="btn sec" style="margin-top:12px" onclick="clearMonthTargets()">Clear this month's adjustments</button>
+    </div>
     <div class="card" id="usersCard">
       <h2 style="margin-top:2px">Users &amp; sign-in</h2>
       <p class="note" id="usersNote"></p>
@@ -678,6 +689,7 @@ function load(){
   if(!DB.savings || typeof DB.savings!=="object") DB.savings={balances:[],target:null};
   if(!Array.isArray(DB.savings.balances)) DB.savings.balances=[];
   if(!Array.isArray(DB.invest.portfolio)) DB.invest.portfolio=[];
+  if(!DB.monthTargets || typeof DB.monthTargets!=="object") DB.monthTargets={};   // { "YYYY-MM": { catId: amount } } one-off target overrides
   // migrate: dated income history (one take-home figure per effective month)
   if(!Array.isArray(DB.incomeHistory)){
     const a = DB.regularIncome ? (parseFloat(DB.regularIncome.amount)||0) : 0;
@@ -777,6 +789,28 @@ function periodMonths(){
   if(PERIOD.key==="custom"){ const r=periodRange(); return Math.max(1,(r.to.getFullYear()*12+r.to.getMonth())-(r.from.getFullYear()*12+r.from.getMonth())+1); }
   return 1;                                                     // month / lastmonth / monthly overview
 }
+/* ----- per-month target overrides: a category's target can differ in specific months ----- */
+function mkKey(y,m){ return y+"-"+String(m+1).padStart(2,"0"); }
+function monthKeysInRange(){
+  const {from,to}=periodRange();
+  const keys=[]; let y=from.getFullYear(), m=from.getMonth(); const eY=to.getFullYear(), eM=to.getMonth(); let g=0;
+  while((y<eY||(y===eY&&m<=eM)) && g++<600){ keys.push(mkKey(y,m)); m++; if(m>11){m=0;y++;} }
+  return keys.length?keys:[mkKey(from.getFullYear(),from.getMonth())];
+}
+function monthTargetFor(cObj, mk){                    // effective monthly target for a category in month mk
+  if(!cObj) return 0;
+  const o=DB.monthTargets && DB.monthTargets[mk];
+  if(o){ const v=o[cObj.id]; if(v!=null && v!=="" && !isNaN(+v)) return +v; }
+  return +cObj.amount||0;
+}
+function effTargetForPeriod(cObj){                    // sum of effective monthly targets over the timeframe
+  if(!cObj) return 0;
+  return monthKeysInRange().reduce((a,mk)=>a+monthTargetFor(cObj,mk),0);
+}
+function hasMonthOverrideInRange(cObj){
+  if(!cObj) return false;
+  return monthKeysInRange().some(mk=>{ const o=DB.monthTargets&&DB.monthTargets[mk]; return o && o[cObj.id]!=null && o[cObj.id]!==""; });
+}
 function periodLabel(){
   const {from,to}=periodRange();
   if(PERIOD.key==="monthly"){ const my=(PERIOD.selY==null?new Date().getFullYear():PERIOD.selY), mm=(PERIOD.selM==null?new Date().getMonth():PERIOD.selM); return new Date(my,mm,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
@@ -846,7 +880,7 @@ function renderDash(){
     const inflow = (byCat[c]||0)>0 ? byCat[c] : 0;
     const net = out - inflow;
     const cObj = catByName(c);
-    const target = (cObj ? (+cObj.amount||0) : 0) * periodMonths();
+    const target = effTargetForPeriod(cObj);
     return {c, out, inflow, net:Math.max(net,0), target};
   }).filter(d=>d.out>0 || d.target>0).sort((a,b)=>b.net-a.net);
 
@@ -869,6 +903,7 @@ function renderDash(){
     const pct = targetBase>0 ? (d.net/targetBase*100) : 0;
     const ratio = d.target>0 ? d.net/d.target : 0;
     const isSav = isFloorName(d.c);
+    const adj = hasMonthOverrideInRange(catByName(d.c));
     let flag, fcls, fillW, fillCol;
     if(isSav){
       // Floor categories (Savings, Investing): the target is an optional MINIMUM.
@@ -897,7 +932,7 @@ function renderDash(){
         ${d.target>0?`<div class="target-mark" style="left:${Math.min(100, 100*d.target/Math.max(d.net,d.target))}%"></div>`:""}
       </div>
       <div class="meta">
-        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(isFloorName(d.c)?" · min ":" · target ")+gbp0(d.target):""}${(!isFloorName(d.c) && d.target>0 && d.net<d.target)?" · "+gbp0(d.target-d.net)+" left":""}</span>
+        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(isFloorName(d.c)?" · min ":" · target ")+gbp0(d.target):""}${(!isFloorName(d.c) && d.target>0 && d.net<d.target)?" · "+gbp0(d.target-d.net)+" left":""}${adj?' · <span style="color:var(--amber);font-weight:600">adjusted</span>':''}</span>
         <span class="flag ${fcls}">${flag}</span>
       </div>
     </div>`;
@@ -1335,6 +1370,7 @@ function saveTxEdit(){
 function renderSettings(){
   updBackupStatus();
   renderCatCfg();
+  renderMonthTargets();
   populateIncomePickers();
   renderIncomeList();
   updRegEquiv();
@@ -1421,6 +1457,63 @@ function saveCatEdit(){
   save(); closeCatModal(); syncCatSelects(); renderCatCfg(); renderDash(); toast("Saved ✓");
 }
 function setCatAmount(id,v){ const c=allCats().find(x=>x.id===id); if(c){ c.amount=parseFloat(v)||0; save(); renderCatCfg(); renderDash(); } }
+function populateMonthTargetPickers(){
+  const mSel=document.getElementById("mtMonth"), ySel=document.getElementById("mtYear");
+  if(!mSel||!ySel) return;
+  if(mSel.options.length===0){
+    const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    mSel.innerHTML=months.map((nm,i)=>`<option value="${i}">${nm}</option>`).join("");
+    const ny=new Date().getFullYear(); let yrs=""; for(let y=ny+2;y>=ny-3;y--) yrs+=`<option value="${y}">${y}</option>`; ySel.innerHTML=yrs;
+    const n=new Date(); mSel.value=n.getMonth(); ySel.value=n.getFullYear();
+  }
+}
+function mtSelectedKey(){ return mkKey(+document.getElementById("mtYear").value, +document.getElementById("mtMonth").value); }
+function renderMonthTargets(){
+  const cfg=document.getElementById("mtCfg"); if(!cfg) return;
+  populateMonthTargetPickers();
+  const mk=mtSelectedKey();
+  const o=(DB.monthTargets&&DB.monthTargets[mk])||{};
+  let html="";
+  GROUPS.forEach(g=>{
+    const list=activeCats().filter(c=>c.group===g);
+    if(!list.length) return;
+    html+=`<div class="tiny muted" style="margin:12px 0 2px;text-transform:uppercase;letter-spacing:.05em">${g}</div>`;
+    list.forEach(c=>{
+      const ov=(o[c.id]!=null && o[c.id]!=="")?o[c.id]:"";
+      html+=`<div class="catrow"><div class="catrow-main">
+          <span class="cname"><span class="dot" style="background:${c.color}"></span>${c.name}</span>
+          <span class="muted tiny">base ${gbp0(+c.amount||0)}</span>
+          <span class="muted tiny">£</span>
+          <input type="number" inputmode="decimal" placeholder="${+c.amount||0}" value="${ov}" onchange="setMonthTarget('${c.id}',this.value)">
+        </div></div>`;
+    });
+  });
+  cfg.innerHTML = html || '<div class="tiny muted">No categories.</div>';
+  const [yy,mm]=mk.split("-").map(Number);
+  const income=incomeForMonth(yy,mm-1);
+  const alloc=activeCats().reduce((a,c)=>a+monthTargetFor(c,mk),0);
+  const left=income-alloc, col=left<0?"var(--red)":"var(--green)";
+  document.getElementById("mtSummary").innerHTML = income>0
+    ? `This month allocates ${gbp0(alloc)} of ${gbp0(income)} — <span style="color:${col}">${left>=0?gbp0(left)+" left":gbp0(-left)+" over"}</span>`
+    : `This month allocates ${gbp0(alloc)}.`;
+}
+function setMonthTarget(catId,v){
+  const mk=mtSelectedKey();
+  if(!DB.monthTargets||typeof DB.monthTargets!=="object") DB.monthTargets={};
+  if(!DB.monthTargets[mk]) DB.monthTargets[mk]={};
+  const sv=(v==null?"":String(v).trim());
+  if(sv==="" || isNaN(parseFloat(sv))) delete DB.monthTargets[mk][catId];
+  else DB.monthTargets[mk][catId]=parseFloat(sv);
+  if(Object.keys(DB.monthTargets[mk]).length===0) delete DB.monthTargets[mk];
+  save(); renderMonthTargets(); renderDash();
+}
+function clearMonthTargets(){
+  const mk=mtSelectedKey();
+  if(DB.monthTargets && DB.monthTargets[mk]){
+    if(!confirm("Clear all one-off targets for this month?")) return;
+    delete DB.monthTargets[mk]; save(); renderMonthTargets(); renderDash(); toast("Cleared");
+  } else toast("No adjustments for this month");
+}
 function toggleCat(id){ const c=allCats().find(x=>x.id===id); if(c){ c.enabled=(c.enabled===false); save(); syncCatSelects(); renderCatCfg(); renderDash(); } }
 function delCat(id){
   const c=allCats().find(x=>x.id===id); if(!c) return;
