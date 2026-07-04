@@ -299,72 +299,82 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <div class="card">
-      <h2 style="margin-top:2px">Your monthly income</h2>
-      <p class="note">Set your monthly take-home, dated from when it started. Add a new dated figure whenever you get a pay rise or cut — earlier months keep the figure that applied at the time.</p>
-      <div id="incomeList" style="margin-top:6px"></div>
-      <div style="margin-top:12px">
-        <label>Set income from a month</label>
-        <div class="row">
-          <div><select id="incMonth"></select></div>
-          <div><select id="incYear"></select></div>
-          <div><input type="number" id="incAmount" inputmode="decimal" placeholder="£ amount"></div>
+    <div class="acc" id="accIncome">
+      <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="note">Set your monthly take-home, dated from when it started. Add a new dated figure whenever you get a pay rise or cut — earlier months keep the figure that applied at the time.</p>
+        <div id="incomeList" style="margin-top:6px"></div>
+        <div style="margin-top:12px">
+          <label>Set income from a month</label>
+          <div class="row">
+            <div><select id="incMonth"></select></div>
+            <div><select id="incYear"></select></div>
+            <div><input type="number" id="incAmount" inputmode="decimal" placeholder="£ amount"></div>
+          </div>
+          <button class="btn sec" style="margin-top:8px" onclick="addIncome()">Save income figure</button>
         </div>
-        <button class="btn sec" style="margin-top:8px" onclick="addIncome()">Save income figure</button>
+        <p class="tiny muted" id="regEquiv" style="margin-top:8px"></p>
       </div>
-      <p class="tiny muted" id="regEquiv" style="margin-top:8px"></p>
     </div>
-    <div class="card">
-      <h2 style="margin-top:2px">Categories &amp; budgets</h2>
-      <p class="note">Set a £ amount for each category. Needs &amp; Wants are spending limits (the bar turns red if you go over); Savings are minimum goals (bar stays green). Disable a category to hide it from the dashboard and pie chart — its past entries are kept and you can re-enable it any time.</p>
-      <p class="tiny" id="allocSummary" style="margin:8px 0 2px;font-weight:600"></p>
-      <div id="catCfg" style="margin-top:6px"></div>
-      <div style="margin-top:12px">
-        <label>Add a category</label>
-        <div class="row">
-          <div style="flex:2"><input id="newCatName" placeholder="Category name"></div>
-          <div><select id="newCatGroup"><option>Needs</option><option>Wants</option><option>Savings</option></select></div>
+    <div class="acc" id="accCats">
+      <div class="acc-head" onclick="toggleAcc('accCats')"><span>Categories &amp; budgets</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="note">Set a £ amount for each category. Needs &amp; Wants are spending limits (the bar turns red if you go over); Savings are minimum goals (bar stays green). Disable a category to hide it from the dashboard and pie chart — its past entries are kept and you can re-enable it any time.</p>
+        <p class="tiny" id="allocSummary" style="margin:8px 0 2px;font-weight:600"></p>
+        <div id="catCfg" style="margin-top:6px"></div>
+        <div style="margin-top:12px">
+          <label>Add a category</label>
+          <div class="row">
+            <div style="flex:2"><input id="newCatName" placeholder="Category name"></div>
+            <div><select id="newCatGroup"><option>Needs</option><option>Wants</option><option>Savings</option></select></div>
+          </div>
+          <button class="btn sec" style="margin-top:8px" onclick="addCat()">Add category</button>
         </div>
-        <button class="btn sec" style="margin-top:8px" onclick="addCat()">Add category</button>
       </div>
     </div>
-    <div class="card">
-      <h2 style="margin-top:2px">Adjust a month's targets</h2>
-      <p class="note">Set one-off targets for a specific month — handy when you know you'll over- or under-spend somewhere. Leave a box blank to use the normal base target. Your base plan isn't changed, and only that month is affected.</p>
-      <div class="row" style="margin-top:6px">
-        <div><label>Month</label><select id="mtMonth" onchange="renderMonthTargets()"></select></div>
-        <div><label>Year</label><select id="mtYear" onchange="renderMonthTargets()"></select></div>
-      </div>
-      <p class="tiny" id="mtSummary" style="margin:10px 0 2px;font-weight:600"></p>
-      <div id="mtCfg" style="margin-top:6px"></div>
-      <button class="btn sec" style="margin-top:12px" onclick="clearMonthTargets()">Clear this month's adjustments</button>
-    </div>
-    <div class="card" id="usersCard">
-      <h2 style="margin-top:2px">Users &amp; sign-in</h2>
-      <p class="note" id="usersNote"></p>
-      <div id="usersList" style="margin-top:8px"></div>
-      <div id="addUserWrap" style="margin-top:10px;display:none">
-        <div class="row">
-          <div><label>New username</label><input id="newUserName"></div>
-          <div><label>Password</label><input id="newUserPw" type="password"></div>
+    <div class="acc" id="accMonthTargets">
+      <div class="acc-head" onclick="toggleAcc('accMonthTargets')"><span>Adjust a month's targets</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="note">Set one-off targets for a specific month — handy when you know you'll over- or under-spend somewhere. Leave a box blank to use the normal base target. Your base plan isn't changed, and only that month is affected.</p>
+        <div class="row" style="margin-top:6px">
+          <div><label>Month</label><select id="mtMonth" onchange="renderMonthTargets()"></select></div>
+          <div><label>Year</label><select id="mtYear" onchange="renderMonthTargets()"></select></div>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;color:var(--txt);letter-spacing:0;margin-top:8px">
-          <input type="checkbox" id="newUserAdmin" style="width:auto"> Make this user an admin
-        </label>
-        <button class="btn sec" style="margin-top:8px" onclick="addUser()">Add user</button>
+        <p class="tiny" id="mtSummary" style="margin:10px 0 2px;font-weight:600"></p>
+        <div id="mtCfg" style="margin-top:6px"></div>
+        <button class="btn sec" style="margin-top:12px" onclick="clearMonthTargets()">Clear this month's adjustments</button>
       </div>
-      <button class="btn" style="margin-top:10px" onclick="changeMyPw()">Change my password</button>
-      <button class="btn sec" style="margin-top:8px" onclick="logout()">Log out</button>
     </div>
-    <div class="card">
-      <h2 style="margin-top:2px">Your data</h2>
-      <p class="note">Stored privately on this device only — nothing is uploaded. A second protected copy is kept automatically and restored if your browser ever clears its storage.</p>
-      <p class="note" id="backupStatus" style="margin-top:8px"></p>
-      <button class="btn sec" style="margin-top:6px" onclick="exportData()">Export backup (.json)</button>
-      <button class="btn sec" style="margin-top:8px" onclick="document.getElementById('importFile').click()">Import backup</button>
-      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
-      <button class="btn sec" style="margin-top:8px" onclick="restoreSnapshot()">Restore an earlier copy</button>
-      <button class="btn danger" style="margin-top:8px" onclick="resetAll()">Erase all data</button>
+    <div class="acc" id="usersCard">
+      <div class="acc-head" onclick="toggleAcc('usersCard')"><span>Users &amp; sign-in</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="note" id="usersNote"></p>
+        <div id="usersList" style="margin-top:8px"></div>
+        <div id="addUserWrap" style="margin-top:10px;display:none">
+          <div class="row">
+            <div><label>New username</label><input id="newUserName"></div>
+            <div><label>Password</label><input id="newUserPw" type="password"></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;color:var(--txt);letter-spacing:0;margin-top:8px">
+            <input type="checkbox" id="newUserAdmin" style="width:auto"> Make this user an admin
+          </label>
+          <button class="btn sec" style="margin-top:8px" onclick="addUser()">Add user</button>
+        </div>
+        <button class="btn" style="margin-top:10px" onclick="changeMyPw()">Change my password</button>
+        <button class="btn sec" style="margin-top:8px" onclick="logout()">Log out</button>
+      </div>
+    </div>
+    <div class="acc" id="accData">
+      <div class="acc-head" onclick="toggleAcc('accData')"><span>Your data</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="note">Stored privately on this device only — nothing is uploaded. A second protected copy is kept automatically and restored if your browser ever clears its storage.</p>
+        <p class="note" id="backupStatus" style="margin-top:8px"></p>
+        <button class="btn sec" style="margin-top:6px" onclick="exportData()">Export backup (.json)</button>
+        <button class="btn sec" style="margin-top:8px" onclick="document.getElementById('importFile').click()">Import backup</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+        <button class="btn sec" style="margin-top:8px" onclick="restoreSnapshot()">Restore an earlier copy</button>
+        <button class="btn danger" style="margin-top:8px" onclick="resetAll()">Erase all data</button>
+      </div>
     </div>
     <div class="card">
       <h2 style="margin-top:2px">Install on your phone</h2>
