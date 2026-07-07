@@ -190,6 +190,15 @@ canvas{max-width:100%;}
     </div>
 
     <div id="dashMain">
+    <div class="card" id="gradeCard" style="display:none">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div id="gradeLetter" style="font-size:32px;font-weight:800;letter-spacing:-1px;min-width:62px;text-align:center;border-radius:14px;padding:10px 4px"></div>
+        <div style="flex:1;min-width:0">
+          <div id="gradeVerdict" style="font-weight:700;font-size:16px"></div>
+          <div id="gradeDetail" class="tiny muted" style="margin-top:3px;line-height:1.45"></div>
+        </div>
+      </div>
+    </div>
     <div class="card" id="emptyHint" style="display:none">
       <h2 style="margin-top:2px">Welcome 👋</h2>
       <p class="note">This is your private money tracker. Nothing is stored online — all of your data lives only on this device. To bring in your figures, open <b>Settings → Import backup</b> and choose your <code>.json</code> file. You can start adding transactions any time too.</p>
@@ -833,6 +842,74 @@ function txInPeriod(){
   const {from,to}=periodRange();
   return DB.txns.filter(t=>{ const d=parse(t.date); return d>=from && d<=to; });
 }
+/* ============================================================= MONTHLY GRADE
+   Discretionary-led. Your Wants spending is judged against a TIME-PACED share of
+   its budget (so 40% through the month you'd expect ~40% spent). Fixed bills
+   (Needs) are judged against their FULL-month target regardless of the date, so
+   paying the mortgage on the 1st never tanks the grade — a Need only costs marks
+   if it comes in OVER target. Savings floors are checked against a paced minimum. */
+function daysInMonthOf(y,mi){ return new Date(y,mi+1,0).getDate(); }
+function monthFraction(mk){
+  const pp=mk.split("-"), y=+pp[0], mi=(+pp[1])-1;
+  const now=new Date(), nowKey=now.getFullYear()*12+now.getMonth(), key=y*12+mi;
+  if(key<nowKey) return 1;      // a fully-elapsed month
+  if(key>nowKey) return 0;      // not started yet
+  return Math.min(1, now.getDate()/daysInMonthOf(y,mi));   // current month, so far
+}
+function gradeStats(){
+  if(!DB.txns || PERIOD.key==="trends") return {show:false};
+  const keys=monthKeysInRange();
+  if(!keys.some(mk=>monthFraction(mk)>0)) return {show:false, reason:"This period hasn't started yet."};
+  let expWantsPaced=0, expNeedsFull=0, expSavPaced=0;
+  activeCats().forEach(c=>{
+    keys.forEach(mk=>{
+      const t=monthTargetFor(c,mk); if(t<=0) return;
+      const f=monthFraction(mk);
+      if(c.group==="Wants") expWantsPaced += t*f;
+      else if(c.group==="Needs") expNeedsFull += t*(f>0?1:0);
+      else if(c.group==="Savings") expSavPaced += t*f;
+    });
+  });
+  if(expWantsPaced<=0) return {show:false, reason:"Add a £ target to a Wants category to get a grade."};
+  const tx=txInPeriod(), byCat={};
+  tx.forEach(t=>{ if(!(t.category in byCat)) byCat[t.category]=0; byCat[t.category]+=t.amount; });
+  let actWants=0, actNeeds=0, actSav=0;
+  activeCats().forEach(c=>{ const v=Math.max(0, -(byCat[c.name]||0)); if(c.group==="Wants") actWants+=v; else if(c.group==="Needs") actNeeds+=v; else if(c.group==="Savings") actSav+=v; });
+  const r = actWants/expWantsPaced;              // 1.0 == exactly on the paced discretionary budget
+  let score = 80 + 130*(1-r);                     // on-budget => 80 (a "B"); under => higher; over => lower
+  let billOver=0, billPen=0;
+  if(expNeedsFull>0){ billOver=Math.max(0, actNeeds-expNeedsFull); billPen=Math.min(20, billOver/expNeedsFull*40); }
+  let savShort=0, savPen=0;
+  if(expSavPaced>0){ savShort=Math.max(0, expSavPaced-actSav); savPen=Math.min(15, savShort/expSavPaced*20); }
+  score = Math.max(0, Math.min(100, score - billPen - savPen));
+  const partial = keys.some(mk=>{ const f=monthFraction(mk); return f>0 && f<1; });
+  const early = keys.some(mk=>{ const f=monthFraction(mk); return f>0 && f<0.15; }) && keys.every(mk=>monthFraction(mk)<1);
+  return {show:true, score, r, actWants, expWantsPaced, actNeeds, expNeedsFull, billOver, billPen, actSav, expSavPaced, savShort, savPen, partial, early};
+}
+function gradeLetter(s){
+  if(s>=97)return"A+"; if(s>=93)return"A"; if(s>=90)return"A-";
+  if(s>=87)return"B+"; if(s>=83)return"B"; if(s>=80)return"B-";
+  if(s>=77)return"C+"; if(s>=73)return"C"; if(s>=70)return"C-";
+  if(s>=67)return"D+"; if(s>=63)return"D"; if(s>=60)return"D-"; return"F";
+}
+function gradeVerdict(s){ return s>=90?"On track": s>=80?"On budget": s>=70?"Slightly over": s>=60?"Over budget":"Well over budget"; }
+const GRADECOL={green:["rgba(16,185,129,.16)","var(--green)"],amber:["rgba(245,158,11,.18)","var(--amber)"],orange:["rgba(255,122,0,.16)","var(--orange)"],red:["rgba(244,63,94,.16)","var(--red)"]};
+function gradeBand(s){ return s>=80?"green": s>=70?"amber": s>=60?"orange":"red"; }
+function renderGrade(){
+  const card=document.getElementById("gradeCard"); if(!card) return;
+  const g=gradeStats();
+  if(!g.show){ card.style.display="none"; return; }
+  card.style.display="block";
+  const band=GRADECOL[gradeBand(g.score)];
+  const box=document.getElementById("gradeLetter");
+  box.textContent=gradeLetter(g.score); box.style.background=band[0]; box.style.color=band[1];
+  document.getElementById("gradeVerdict").textContent=gradeVerdict(g.score);
+  let det=`Discretionary ${gbp(g.actWants)} of ${gbp(g.expWantsPaced)}${g.partial?" paced":""} budget`;
+  if(g.billPen>0) det+=` · bills ${gbp(g.billOver)} over`;
+  if(g.savPen>0) det+=` · savings behind`;
+  if(g.early) det+=` · early days, this will settle`;
+  document.getElementById("gradeDetail").textContent=det;
+}
 /* ============================================================= RENDER DASHBOARD */
 let chart;
 let trendChart;
@@ -878,12 +955,13 @@ function renderDash(){
   let targetBase = base + income;                          // income = all logged income in the period
   const fullBasis = (PERIOD.key==="month"||PERIOD.key==="ytd"||PERIOD.key==="yearview"||PERIOD.key==="monthly");
 
-  document.getElementById("tIncome").textContent=gbp0(targetBase);
-  document.getElementById("tSpend").textContent=gbp0(spend);
+  document.getElementById("tIncome").textContent=gbp(targetBase);
+  document.getElementById("tSpend").textContent=gbp(spend);
   const net=targetBase-spend;
   const netEl=document.getElementById("tNet");
-  netEl.textContent=gbp0(net); netEl.className="val "+(net>=0?"pos":"neg");
-  document.getElementById("tSave").textContent=gbp0(saved);
+  netEl.textContent=gbp(net); netEl.className="val "+(net>=0?"pos":"neg");
+  document.getElementById("tSave").textContent=gbp(saved);
+  renderGrade();
   // sort by amount spent desc
   const data = spendCats.map(c=>{
     const out = (byCat[c]||0)<0 ? -byCat[c] : 0;
@@ -919,14 +997,14 @@ function renderDash(){
       // Floor categories (Savings, Investing): the target is an optional MINIMUM.
       // The bar is ALWAYS green — it never turns orange or red for being under.
       if(d.target<=0){ flag="saved"; }
-      else if(ratio>=1){ flag="goal met"+(d.net>d.target?" · +"+gbp0(d.net-d.target):""); }
-      else { flag=gbp0(d.target-d.net)+" to go"; }
+      else if(ratio>=1){ flag="goal met"+(d.net>d.target?" · +"+gbp(d.net-d.target):""); }
+      else { flag=gbp(d.target-d.net)+" to go"; }
       fcls="ok";
       fillW=Math.min(100, d.target>0?ratio*100:(d.net>0?100:0));
       fillCol="var(--green)";
     } else {
       if(d.target<=0){ flag="no target"; fcls="ok"; }
-      else if(ratio>1){ flag="cut back · "+gbp0(d.net-d.target)+" over"; fcls="over"; }
+      else if(ratio>1){ flag="cut back · "+gbp(d.net-d.target)+" over"; fcls="over"; }
       else if(ratio>0.85){ flag="near limit"; fcls="near"; }
       else { flag="on track"; fcls="ok"; }
       fillW=Math.min(100, d.target>0?ratio*100:(d.net>0?100:0));
@@ -935,14 +1013,14 @@ function renderDash(){
     return `<div class="cat" onclick="openHistory('${d.c.replace(/'/g,"\\'")}')" style="cursor:pointer">
       <div class="top">
         <span class="name"><span class="dot" style="background:${catColor(d.c)}"></span>${d.c}</span>
-        <span class="amt">${gbp0(d.net)}</span>
+        <span class="amt">${gbp(d.net)}</span>
       </div>
       <div class="barwrap">
         <div class="bar"><span style="width:${fillW}%;background:${fillCol}"></span></div>
         ${d.target>0?`<div class="target-mark" style="left:${Math.min(100, 100*d.target/Math.max(d.net,d.target))}%"></div>`:""}
       </div>
       <div class="meta">
-        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(isFloorName(d.c)?" · min ":" · target ")+gbp0(d.target):""}${(!isFloorName(d.c) && d.target>0 && d.net<d.target)?" · "+gbp0(d.target-d.net)+" left":""}${adj?' · <span style="color:var(--amber);font-weight:600">adjusted</span>':''}</span>
+        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(isFloorName(d.c)?" · min ":" · target ")+gbp(d.target):""}${(!isFloorName(d.c) && d.target>0 && d.net<d.target)?" · "+gbp(d.target-d.net)+" left":""}${adj?' · <span style="color:var(--amber);font-weight:600">adjusted</span>':''}</span>
         <span class="flag ${fcls}">${flag}</span>
       </div>
     </div>`;
@@ -953,15 +1031,15 @@ function renderDash(){
     const remaining = targetBase - spend;
     const remPct = remaining/targetBase*100;
     let col, label, shown, w;
-    if(remaining < 0){ col="var(--red)"; w=100; label="Overspent by "+gbp0(-remaining); shown="-"+gbp0(-remaining); }
-    else { col = "var(--green)"; w=Math.max(0,Math.min(100,remPct)); label=gbp0(remaining)+" still to allocate"; shown=gbp0(remaining); }
+    if(remaining < 0){ col="var(--red)"; w=100; label="Overspent by "+gbp(-remaining); shown="-"+gbp(-remaining); }
+    else { col = "var(--green)"; w=Math.max(0,Math.min(100,remPct)); label=gbp(remaining)+" still to allocate"; shown=gbp(remaining); }
     const html = `<div class="cat alloc">
       <div class="top">
         <span class="name"><span class="dot" style="background:${col}"></span>Left to allocate</span>
         <span class="amt" style="color:${col}">${shown}</span>
       </div>
       <div class="barwrap"><div class="bar"><span style="width:${w}%;background:${col}"></span></div></div>
-      <div class="meta"><span>${label}</span><span class="muted">of ${gbp0(targetBase)} ${(PERIOD.key==="month"||PERIOD.key==="monthly")?"month income":(PERIOD.key==="ytd"?"income to date":"annual income")}</span></div>
+      <div class="meta"><span>${label}</span><span class="muted">of ${gbp(targetBase)} ${(PERIOD.key==="month"||PERIOD.key==="monthly")?"month income":(PERIOD.key==="ytd"?"income to date":"annual income")}</span></div>
     </div>`;
     if(data.length===0) list.innerHTML = html; else list.innerHTML += html;
   }
@@ -976,7 +1054,7 @@ function drawChart(data){
   if(chart) chart.destroy();
   chart=new Chart(ctx,{type:"doughnut",data:{labels,datasets:[{data:vals,backgroundColor:cols,borderColor:"#1e293b",borderWidth:2}]},
     options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>" "+c.label+": £"+c.parsed.toLocaleString()+" ("+pcts[c.dataIndex]+"% of income)"}}},cutout:"62%"}});
-  document.getElementById("legend").innerHTML=data.map(d=>`<div><span class="dot" style="background:${d.col}"></span>${d.label} ${gbp0(d.net)} · ${d.pct}%</div>`).join("");
+  document.getElementById("legend").innerHTML=data.map(d=>`<div><span class="dot" style="background:${d.col}"></span>${d.label} ${gbp(d.net)} · ${d.pct}%</div>`).join("");
 }
 function setPie(m){ PIEMODE=m; document.querySelectorAll("#pieToggle button").forEach(b=>b.classList.toggle("on",b.dataset.pie===m)); renderDash(); }
 
