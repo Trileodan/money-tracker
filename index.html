@@ -860,12 +860,12 @@ function gradeStats(){
   if(!DB.txns || PERIOD.key==="trends") return {show:false};
   const keys=monthKeysInRange();
   if(!keys.some(mk=>monthFraction(mk)>0)) return {show:false, reason:"This period hasn't started yet."};
-  let expWantsPaced=0, expNeedsFull=0, expSavPaced=0;
+  let expWantsPaced=0, expWantsFull=0, expNeedsFull=0, expSavPaced=0;
   activeCats().forEach(c=>{
     keys.forEach(mk=>{
-      const t=monthTargetFor(c,mk); if(t<=0) return;
+      const t=monthTargetFor(c,mk); if(t<=0) return;   // monthTargetFor applies any per-month override for mk
       const f=monthFraction(mk);
-      if(c.group==="Wants") expWantsPaced += t*f;
+      if(c.group==="Wants"){ expWantsPaced += t*f; expWantsFull += t*(f>0?1:0); }
       else if(c.group==="Needs") expNeedsFull += t*(f>0?1:0);
       else if(c.group==="Savings") expSavPaced += t*f;
     });
@@ -876,15 +876,23 @@ function gradeStats(){
   let actWants=0, actNeeds=0, actSav=0;
   activeCats().forEach(c=>{ const v=Math.max(0, -(byCat[c.name]||0)); if(c.group==="Wants") actWants+=v; else if(c.group==="Needs") actNeeds+=v; else if(c.group==="Savings") actSav+=v; });
   const r = actWants/expWantsPaced;              // 1.0 == exactly on the paced discretionary budget
-  let score = 80 + 130*(1-r);                     // on-budget => 80 (a "B"); under => higher; over => lower
+  let score = gradeScoreFromRatio(r);            // gradual A–F curve (on-budget ~ B)
   let billOver=0, billPen=0;
-  if(expNeedsFull>0){ billOver=Math.max(0, actNeeds-expNeedsFull); billPen=Math.min(20, billOver/expNeedsFull*40); }
+  if(expNeedsFull>0){ billOver=Math.max(0, actNeeds-expNeedsFull); billPen=Math.min(15, billOver/expNeedsFull*30); }
   let savShort=0, savPen=0;
-  if(expSavPaced>0){ savShort=Math.max(0, expSavPaced-actSav); savPen=Math.min(15, savShort/expSavPaced*20); }
+  if(expSavPaced>0){ savShort=Math.max(0, expSavPaced-actSav); savPen=Math.min(12, savShort/expSavPaced*15); }
   score = Math.max(0, Math.min(100, score - billPen - savPen));
   const partial = keys.some(mk=>{ const f=monthFraction(mk); return f>0 && f<1; });
   const early = keys.some(mk=>{ const f=monthFraction(mk); return f>0 && f<0.15; }) && keys.every(mk=>monthFraction(mk)<1);
-  return {show:true, score, r, actWants, expWantsPaced, actNeeds, expNeedsFull, billOver, billPen, actSav, expSavPaced, savShort, savPen, partial, early};
+  return {show:true, score, r, actWants, expWantsPaced, expWantsFull, actNeeds, expNeedsFull, billOver, billPen, actSav, expSavPaced, savShort, savPen, partial, early};
+}
+function gradeScoreFromRatio(r){
+  // r = actual / paced-expected discretionary spend. Lower = better. Piecewise so grades spread across A–F.
+  const A=[[0.5,100],[0.75,95],[1.0,85],[1.15,78],[1.35,68],[1.6,58],[2.0,42],[3.0,15]];
+  if(r<=A[0][0]) return 100;
+  if(r>=A[A.length-1][0]) return 10;
+  for(let i=1;i<A.length;i++){ if(r<=A[i][0]){ const r0=A[i-1][0],s0=A[i-1][1],r1=A[i][0],s1=A[i][1]; return s0+(s1-s0)*(r-r0)/(r1-r0); } }
+  return 10;
 }
 function gradeLetter(s){
   if(s>=97)return"A+"; if(s>=93)return"A"; if(s>=90)return"A-";
@@ -904,10 +912,11 @@ function renderGrade(){
   const box=document.getElementById("gradeLetter");
   box.textContent=gradeLetter(g.score); box.style.background=band[0]; box.style.color=band[1];
   document.getElementById("gradeVerdict").textContent=gradeVerdict(g.score);
-  let det=`Discretionary ${gbp(g.actWants)} of ${gbp(g.expWantsPaced)}${g.partial?" paced":""} budget`;
-  if(g.billPen>0) det+=` · bills ${gbp(g.billOver)} over`;
-  if(g.savPen>0) det+=` · savings behind`;
-  if(g.early) det+=` · early days, this will settle`;
+  let det=`Discretionary spend ${gbp(g.actWants)} of your ${gbp(g.expWantsFull)} Wants budget.`;
+  if(g.partial) det+=` About ${gbp(g.expWantsPaced)} expected by today.`;
+  if(g.billPen>0) det+=` Bills ${gbp(g.billOver)} over.`;
+  if(g.savPen>0) det+=` Savings behind pace.`;
+  if(g.early) det+=` Early days — this will settle.`;
   document.getElementById("gradeDetail").textContent=det;
 }
 /* ============================================================= RENDER DASHBOARD */
