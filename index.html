@@ -519,6 +519,12 @@ canvas{max-width:100%;}
     <h2 style="margin-top:0">Edit category</h2>
     <div class="field"><label>Name</label><input id="ecName"></div>
     <div class="field"><label>Group</label><select id="ecGroup"><option>Needs</option><option>Wants</option><option>Savings</option></select></div>
+    <div class="field" id="ecFlexWrap">
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
+        <input type="checkbox" id="ecFlex" style="width:auto"> Variable spend — count in my grade
+      </label>
+      <p class="note" style="margin:6px 0 0">Tick for spending that trickles through the month and you could cut back (e.g. Groceries, Travel). It gets paced across the month and counts toward your grade. Leave unticked for fixed bills, which are judged only on staying within target.</p>
+    </div>
     <div class="row">
       <button class="btn sec" onclick="closeCatModal()">Cancel</button>
       <button class="btn" onclick="saveCatEdit()">Save</button>
@@ -601,6 +607,10 @@ function activeCats(){ return allCats().filter(c=>c.enabled!==false); }
 function catByName(n){ return allCats().find(c=>c.name===n); }
 function catColor(n){ const c=catByName(n); return c?c.color:(INCOME_COLORS[n]||"#64748b"); }
 function isFloorName(n){ const c=catByName(n); return !!c && c.group==="Savings"; }
+// Flexible = variable spend you can cut back (paced through the month + counted in the grade).
+// Wants are flexible by default; a Need (e.g. Groceries, Travel) can be flagged flexible too.
+// Savings are floors and are never "flexible".
+function isFlex(c){ if(!c || c.group==="Savings") return false; return c.flex==null ? (c.group==="Wants") : !!c.flex; }
 // dated monthly take-home history: pick the figure effective for a given month
 function incomeHist(){ return (DB.incomeHistory||[]).slice().sort((a,b)=>a.date<b.date?-1:1); }
 function incomeForMonth(y,m){
@@ -865,16 +875,16 @@ function gradeStats(){
     keys.forEach(mk=>{
       const t=monthTargetFor(c,mk); if(t<=0) return;   // monthTargetFor applies any per-month override for mk
       const f=monthFraction(mk);
-      if(c.group==="Wants"){ expWantsPaced += t*f; expWantsFull += t*(f>0?1:0); }
-      else if(c.group==="Needs") expNeedsFull += t*(f>0?1:0);
-      else if(c.group==="Savings") expSavPaced += t*f;
+      if(c.group==="Savings") expSavPaced += t*f;
+      else if(isFlex(c)){ expWantsPaced += t*f; expWantsFull += t*(f>0?1:0); }   // paced: Wants + any Need flagged variable
+      else expNeedsFull += t*(f>0?1:0);                                          // fixed bills: judged on full-month target
     });
   });
-  if(expWantsPaced<=0) return {show:false, reason:"Add a £ target to a Wants category to get a grade."};
+  if(expWantsPaced<=0) return {show:false, reason:"Add a £ target to a Wants category (or flag a Need as variable) to get a grade."};
   const tx=txInPeriod(), byCat={};
   tx.forEach(t=>{ if(!(t.category in byCat)) byCat[t.category]=0; byCat[t.category]+=t.amount; });
   let actWants=0, actNeeds=0, actSav=0;
-  activeCats().forEach(c=>{ const v=Math.max(0, -(byCat[c.name]||0)); if(c.group==="Wants") actWants+=v; else if(c.group==="Needs") actNeeds+=v; else if(c.group==="Savings") actSav+=v; });
+  activeCats().forEach(c=>{ const v=Math.max(0, -(byCat[c.name]||0)); if(c.group==="Savings") actSav+=v; else if(isFlex(c)) actWants+=v; else actNeeds+=v; });
   const r = actWants/expWantsPaced;              // 1.0 == exactly on the paced discretionary budget
   let score = gradeScoreFromRatio(r);            // gradual A–F curve (on-budget ~ B)
   let billOver=0, billPen=0;
@@ -912,7 +922,7 @@ function renderGrade(){
   const box=document.getElementById("gradeLetter");
   box.textContent=gradeLetter(g.score); box.style.background=band[0]; box.style.color=band[1];
   document.getElementById("gradeVerdict").textContent=gradeVerdict(g.score);
-  let det=`Discretionary spend ${gbp(g.actWants)} of your ${gbp(g.expWantsFull)} Wants budget.`;
+  let det=`Flexible spend ${gbp(g.actWants)} of your ${gbp(g.expWantsFull)} budget.`;
   if(g.partial) det+=` About ${gbp(g.expWantsPaced)} expected by today.`;
   if(g.billPen>0) det+=` Bills ${gbp(g.billOver)} over.`;
   if(g.savPen>0) det+=` Savings behind pace.`;
@@ -1518,7 +1528,7 @@ function renderCatCfg(){
       const pct=income>0?Math.round((+c.amount||0)/income*100)+"%":"";
       html+=`<div class="catrow" style="${off?'opacity:.5':''}">
         <div class="catrow-main">
-          <span class="cname"><span class="dot" style="background:${c.color}"></span>${c.name}</span>
+          <span class="cname"><span class="dot" style="background:${c.color}"></span>${c.name}${isFlex(c)?' <span style="background:rgba(59,130,246,.18);color:var(--blue);font-size:9px;font-weight:700;padding:2px 5px;border-radius:5px;letter-spacing:.4px">GRADED</span>':''}</span>
           <span class="muted tiny">£</span>
           <input type="number" inputmode="decimal" value="${+c.amount||0}" ${off?'disabled':''} onchange="setCatAmount('${c.id}',this.value)">
           <span class="pct">${pct}</span>
@@ -1540,7 +1550,7 @@ function renderCatCfg(){
     : "Set your monthly income to see how much is left to allocate.";
 }
 let CEDIT=null;
-function editCat(id){ const c=allCats().find(x=>x.id===id); if(!c) return; CEDIT=id; document.getElementById("ecName").value=c.name; document.getElementById("ecGroup").value=c.group; document.getElementById("catModal").classList.add("on"); }
+function editCat(id){ const c=allCats().find(x=>x.id===id); if(!c) return; CEDIT=id; document.getElementById("ecName").value=c.name; document.getElementById("ecGroup").value=c.group; document.getElementById("ecFlex").checked=isFlex(c); document.getElementById("catModal").classList.add("on"); }
 function closeCatModal(){ document.getElementById("catModal").classList.remove("on"); CEDIT=null; }
 function saveCatEdit(){
   const c=allCats().find(x=>x.id===CEDIT); if(!c){ closeCatModal(); return; }
@@ -1551,6 +1561,7 @@ function saveCatEdit(){
   const old=c.name;
   if(name!==old){ (DB.txns||[]).forEach(t=>{ if(t.category===old) t.category=name; }); (DB.recurring||[]).forEach(r=>{ if(r.category===old) r.category=name; }); }
   c.name=name; c.group=group;
+  c.flex = (group==="Savings") ? false : !!document.getElementById("ecFlex").checked;
   save(); closeCatModal(); syncCatSelects(); renderCatCfg(); renderDash(); toast("Saved ✓");
 }
 function setCatAmount(id,v){ const c=allCats().find(x=>x.id===id); if(c){ c.amount=parseFloat(v)||0; save(); renderCatCfg(); renderDash(); } }
