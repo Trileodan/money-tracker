@@ -1207,24 +1207,26 @@ function renderTrend(){
   const months=monthsBack(12), labels=months.map(x=>x.label);
   const ctx=document.getElementById("trendChart");
   let datasets, opts, legend="";
+  const r2=x=>Math.round(x*100)/100;   // keep pennies — no whole-pound rounding
   if(choice==="__all__"){
     const groups=["Needs","Wants","Savings"], gd={Needs:[],Wants:[],Savings:[]};
-    months.forEach(mo=>{ const g={Needs:0,Wants:0,Savings:0}; activeCats().forEach(c=>{ g[c.group]=(g[c.group]||0)+catNetInMonth(c.name,mo.y,mo.m); }); groups.forEach(gr=>gd[gr].push(Math.round(g[gr]||0))); });
+    months.forEach(mo=>{ const g={Needs:0,Wants:0,Savings:0}; activeCats().forEach(c=>{ g[c.group]=(g[c.group]||0)+catNetInMonth(c.name,mo.y,mo.m); }); groups.forEach(gr=>gd[gr].push(r2(g[gr]||0))); });
     datasets=groups.map(gr=>({label:gr, data:gd[gr], backgroundColor:GROUP_COLORS[gr], stack:"s", borderWidth:0}));
     // monthly income line — where the stacked bars rise above it, spending has surpassed income
-    const incLine=months.map(mo=>Math.round(incomeForMonth(mo.y,mo.m)));
+    const incLine=months.map(mo=>r2(incomeForMonth(mo.y,mo.m)));
     datasets.push({type:"line", label:"Income", data:incLine, stack:"income", borderColor:"#fbbf24", borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false, order:0});
-    opts={animation:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>" "+c.dataset.label+": £"+c.parsed.y.toLocaleString()}}}, scales:{x:{stacked:true,grid:{display:false},ticks:{color:"#94a3b8"}}, y:{stacked:true,beginAtZero:true,ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}}}};
+    opts={animation:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>" "+c.dataset.label+": £"+c.parsed.y.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}}}, scales:{x:{stacked:true,grid:{display:false},ticks:{color:"#94a3b8"}}, y:{stacked:true,beginAtZero:true,ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}}}};
     legend=groups.map(gr=>`<div><span class="dot" style="background:${GROUP_COLORS[gr]}"></span>${gr}</div>`).join("")+`<div><span style="display:inline-block;width:14px;border-top:2px dashed #fbbf24;vertical-align:middle"></span> Income</div>`;
   } else {
     const cat=catByName(choice), target=cat?(+cat.amount||0):0, isFloor=isFloorName(choice);
-    const vals=months.map(mo=>Math.round(catNetInMonth(choice,mo.y,mo.m)));
+    const exact=months.map(mo=>catNetInMonth(choice,mo.y,mo.m));
+    const vals=exact.map(r2);   // 2dp for the bars/tooltips — no whole-pound rounding
     // Savings/Investments are a minimum to beat: green when over/met, red when under.
-    // Spending categories: green when under, red when over.
-    const cols=vals.map(v=> target<=0 ? "#10b981" : (isFloor ? (v>=target?"#10b981":"#f43f5e") : (v>target?"#f43f5e":"#10b981")));
+    // Spending categories: green when under, red when over. Compare EXACT £ with a half-penny tolerance.
+    const cols=exact.map(v=> target<=0 ? "#10b981" : (isFloor ? (v>=target-0.005?"#10b981":"#f43f5e") : (v>target+0.005?"#f43f5e":"#10b981")));
     datasets=[{type:"bar", label:choice, data:vals, backgroundColor:cols, borderWidth:0, order:2}];
-    if(target>0) datasets.push({type:"line", label:"Target", data:months.map(()=>Math.round(target)), borderColor:"#f1f5f9", borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false, order:1});
-    opts={animation:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>" £"+c.parsed.y.toLocaleString()}}}, scales:{x:{grid:{display:false},ticks:{color:"#94a3b8"}}, y:{beginAtZero:true,ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}}}};
+    if(target>0) datasets.push({type:"line", label:"Target", data:months.map(()=>r2(target)), borderColor:"#f1f5f9", borderDash:[6,4], borderWidth:2, pointRadius:0, fill:false, order:1});
+    opts={animation:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>" £"+c.parsed.y.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}}}, scales:{x:{grid:{display:false},ticks:{color:"#94a3b8"}}, y:{beginAtZero:true,ticks:{color:"#94a3b8"},grid:{color:"#1e293b"}}}};
     legend = target>0
       ? (isFloor
           ? `<div><span class="dot" style="background:#10b981"></span>Met £${target}+ goal</div><div><span class="dot" style="background:#f43f5e"></span>Under £${target}</div><div><span style="display:inline-block;width:14px;border-top:2px dashed #f1f5f9;vertical-align:middle"></span> Goal £${target}</div>`
