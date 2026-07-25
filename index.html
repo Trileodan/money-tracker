@@ -62,6 +62,14 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transf
 .target-mark{position:absolute;top:-2px;width:2px;height:11px;background:var(--txt);opacity:.8;}
 .obj{padding:12px 0;border-bottom:1px solid var(--line);}
 .obj:last-child{border-bottom:none;}
+.goal{padding:12px 0;border-bottom:1px solid var(--line);}
+.goal:last-child{border-bottom:none;}
+.streak{padding:12px 0;border-bottom:1px solid var(--line);}
+.streak:last-child{border-bottom:none;}
+.mastery{padding:14px 0;border-bottom:1px solid var(--line);}
+.mastery:last-child{border-bottom:none;}
+@keyframes lvlglow{0%{box-shadow:0 0 0 0 rgba(16,185,129,.55)}100%{box-shadow:0 0 0 16px rgba(16,185,129,0)}}
+.levelup{animation:lvlglow 1.2s ease-out;}
 .meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:5px;}
 .flag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;}
 .flag.over{background:#3a1620;color:var(--red);}
@@ -113,9 +121,9 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transf
 
 /* tab bar */
 .tabbar{position:fixed;top:0;left:0;right:0;background:rgba(15,23,42,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;padding:calc(4px + env(safe-area-inset-top)) 4px 6px;z-index:60;}
-.tabbar button{flex:1;background:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;padding:6px 0;position:relative;}
+.tabbar button{flex:1;background:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;padding:6px 0;position:relative;min-width:0;}
 .tabbar button.on{color:var(--accent);}
-.tabbar svg{width:23px;height:23px;}
+.tabbar svg{width:21px;height:21px;}
 .page{display:none;}
 .page.on{display:block;animation:fade .2s;}
 @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
@@ -311,6 +319,32 @@ canvas{max-width:100%;}
     <div class="card" id="txList"></div>
   </div>
 
+  <!-- ============ PROGRESS ============ -->
+  <div class="page" id="page-progress">
+    <h1>Progress</h1>
+    <p class="sub">Your lifetime progress. Everything updates automatically from what you log — nothing extra to tick, and XP is never lost.</p>
+    <div class="card" id="xpCard">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <span style="font-weight:800;font-size:22px" id="xpLevel">Level 1</span>
+        <span class="tiny muted" id="xpTotal">0 XP total</span>
+      </div>
+      <div class="bar" style="height:12px;margin-top:10px"><span id="xpBar" style="width:0%;background:var(--accent)"></span></div>
+      <div class="tiny muted" style="margin-top:6px" id="xpInto">0 / 500 XP to Level 2</div>
+      <div id="xpBreak" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:2px">Streaks</h2>
+      <p class="note">Track habits like "no takeaways" or "add to savings weekly". A streak counts automatically from your transactions and only resets when a qualifying one is logged.</p>
+      <div id="streakList" style="margin-top:6px"></div>
+      <button class="btn sec" style="margin-top:10px" onclick="openStreakModal()">New streak</button>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:2px">Category mastery</h2>
+      <p class="note">Each spending category earns a permanent mastery level as you consistently stay under target and set new personal bests. It never goes down — a tough month just pauses your progress. Based only on your own history.</p>
+      <div id="masteryList" style="margin-top:6px"></div>
+    </div>
+  </div>
+
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
@@ -451,6 +485,13 @@ canvas{max-width:100%;}
           <div id="savGoal" style="margin-top:12px"></div>
         </div>
 
+        <div class="card">
+          <h2 style="margin-top:2px">Savings goals</h2>
+          <p class="note">Track named goals like an emergency fund or house deposit. Update the current amount whenever it changes.</p>
+          <div id="savGoalsList" style="margin-top:6px"></div>
+          <button class="btn sec" style="margin-top:10px" onclick="openGoalModal('savings')">Add a savings goal</button>
+        </div>
+
       </div>
     </div>
 
@@ -493,6 +534,13 @@ canvas{max-width:100%;}
       <p class="tiny muted" style="margin-top:10px">Estimates only — not financial advice. Markets go down as well as up.</p>
     </div>
 
+    <div class="card">
+      <h2 style="margin-top:2px">Investment goals</h2>
+      <p class="note">Track named goals like an ISA target or a portfolio milestone.</p>
+      <div id="invGoalsList" style="margin-top:6px"></div>
+      <button class="btn sec" style="margin-top:10px" onclick="openGoalModal('invest')">Add an investment goal</button>
+    </div>
+
       </div>
     </div>
   </div>
@@ -506,6 +554,7 @@ canvas{max-width:100%;}
   <button data-tab="add" onclick="go('add')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add<span class="tabdot" id="addDot" style="display:none"></span></button>
   <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 5h6v6"/></svg>Savings</button>
   <button data-tab="goals" onclick="go('goals')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none"/></svg>Goals</button>
+  <button data-tab="progress" onclick="go('progress')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1.8 2.6 4.5 3.8 4.5 7.5a4.5 4.5 0 0 1-9 0c0-1.7.8-3 2-4 .1 1.5 1 2.4 2 2.6-.7-2 .1-4 .5-6.1z"/></svg>Streaks</button>
   <button data-tab="set" onclick="go('set')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
 </div>
 
@@ -541,6 +590,44 @@ canvas{max-width:100%;}
 </div>
 
 <!-- EDIT CATEGORY MODAL -->
+<div class="modal" id="streakModal">
+  <div class="sheet">
+    <h2 id="streakModalTitle" style="margin-top:0">New streak</h2>
+    <div class="field"><label>Name</label><input id="stName" placeholder="e.g. No Takeaways"></div>
+    <div class="field"><label>Type</label>
+      <select id="stKind" onchange="stKindChange()">
+        <option value="avoid">Avoiding a spend — count clean days</option>
+        <option value="do">Keeping up a habit — weekly / monthly</option>
+      </select>
+    </div>
+    <div class="field" id="stFreqWrap" style="display:none"><label>How often</label>
+      <select id="stPeriod"><option value="week">Weekly</option><option value="month">Monthly</option></select>
+    </div>
+    <div class="field"><label>Category (optional)</label><select id="stCat"></select></div>
+    <div class="field"><label>Description keyword (optional)</label><input id="stKw" placeholder="e.g. coffee, amazon"></div>
+    <p class="note">Set a category, a keyword, or both. A transaction counts toward the streak if it matches your choice.</p>
+    <div class="row">
+      <button class="btn sec" onclick="closeStreakModal()">Cancel</button>
+      <button class="btn" onclick="saveStreak()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="goalModal">
+  <div class="sheet">
+    <h2 id="goalModalTitle" style="margin-top:0">New goal</h2>
+    <div class="field"><label>Goal name</label><input id="gName" placeholder="e.g. Emergency Fund"></div>
+    <div class="row">
+      <div><label>Current (£)</label><input type="number" id="gCurrent" inputmode="decimal" placeholder="£"></div>
+      <div><label>Target (£)</label><input type="number" id="gTarget" inputmode="decimal" placeholder="£"></div>
+    </div>
+    <div class="row">
+      <button class="btn sec" onclick="closeGoalModal()">Cancel</button>
+      <button class="btn" onclick="saveGoal()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="catModal">
   <div class="sheet">
     <h2 style="margin-top:0">Edit category</h2>
@@ -747,6 +834,8 @@ function load(){
   if(!Array.isArray(DB.invest.portfolio)) DB.invest.portfolio=[];
   if(!DB.monthTargets || typeof DB.monthTargets!=="object") DB.monthTargets={};   // { "YYYY-MM": { catId: amount } } one-off target overrides
   if(!Array.isArray(DB.objectives)) DB.objectives=[];   // [{id,amount,startDate,byDate}] spend-under-by-date goals
+  if(!Array.isArray(DB.goals)) DB.goals=[];   // [{id,kind:"savings"|"invest",name,current,target}] progress goals
+  if(!Array.isArray(DB.streaks)) DB.streaks=[];   // [{id,name,kind:"avoid"|"do",category,keyword,period,created}]
   // migrate: dated income history (one take-home figure per effective month)
   if(!Array.isArray(DB.incomeHistory)){
     const a = DB.regularIncome ? (parseFloat(DB.regularIncome.amount)||0) : 0;
@@ -1773,6 +1862,7 @@ function go(tab){
   if(tab==="set") renderSettings();
   if(tab==="invest") renderInvest();
   if(tab==="goals") renderGoals();
+  if(tab==="progress") renderProgress();
   window.scrollTo(0,0);
 }
 /* ============================================================= INVESTMENT PLANNER */
@@ -1922,8 +2012,315 @@ function renderSavings(){
     `<div class="spendrow"><span><b>Time to target</b> <span class="muted tiny">at ${gbp0(monthly)}/mo</span></span><span class="v">${dur}</span></div>`+
     `<div class="tiny muted" style="margin-top:8px">Paying in ${gbp0(monthly)}/month, you'll hit ${gbp0(target)} around <b>${fmtDateY(ymd(td))}</b>.</div>`;
 }
+/* ============================================================= GOALS (savings & investment progress) */
+function goalsInit(){ if(!Array.isArray(DB.goals)) DB.goals=[]; }
+function goalsFor(kind){ goalsInit(); return DB.goals.filter(g=>g.kind===kind); }
+function goalPct(g){ const t=+g.target||0; return t>0 ? Math.min(100, (+g.current||0)/t*100) : 0; }
+function goalRowHTML(g){
+  const cur=+g.current||0, tgt=+g.target||0, pct=goalPct(g), rem=Math.max(0,tgt-cur), done=(tgt>0 && cur>=tgt);
+  const col=done?"var(--green)":"var(--accent)";
+  return `<div class="goal">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <span style="font-weight:700">${g.name||"Goal"}${done?" 🎉":""}</span>
+        <span class="tiny muted">${Math.round(pct)}%</span>
+      </div>
+      <div class="bar" style="height:10px;margin-top:8px"><span style="width:${pct}%;background:${col}"></span></div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;gap:8px">
+        <span class="tiny muted">${gbp(cur)} / ${gbp(tgt)}</span>
+        <span class="tiny muted">${done?"reached":gbp(rem)+" to go"}</span>
+      </div>
+      <div class="catrow-btns" style="margin-top:8px">
+        <button class="btn sec" onclick="editGoal('${g.id}')">Edit</button>
+        <button class="btn danger" onclick="delGoal('${g.id}')">Delete</button>
+      </div>
+    </div>`;
+}
+function renderGoalsInto(kind, listId){
+  const el=document.getElementById(listId); if(!el) return;
+  const gs=goalsFor(kind);
+  el.innerHTML = gs.length ? gs.map(goalRowHTML).join("") : '<div class="tiny muted" style="padding:2px 0">No goals yet — add one below.</div>';
+}
+let GKIND="savings", GEDIT=null;
+function openGoalModal(kind){ GKIND=kind; GEDIT=null; document.getElementById("goalModalTitle").textContent="New goal"; document.getElementById("gName").value=""; document.getElementById("gCurrent").value=""; document.getElementById("gTarget").value=""; document.getElementById("goalModal").classList.add("on"); }
+function editGoal(id){ goalsInit(); const g=DB.goals.find(x=>x.id===id); if(!g) return; GKIND=g.kind; GEDIT=id; document.getElementById("goalModalTitle").textContent="Edit goal"; document.getElementById("gName").value=g.name||""; document.getElementById("gCurrent").value=(g.current==null?"":g.current); document.getElementById("gTarget").value=(g.target==null?"":g.target); document.getElementById("goalModal").classList.add("on"); }
+function closeGoalModal(){ document.getElementById("goalModal").classList.remove("on"); GEDIT=null; }
+function saveGoal(){
+  goalsInit();
+  const name=document.getElementById("gName").value.trim();
+  const cur=parseFloat(document.getElementById("gCurrent").value)||0;
+  const tgt=parseFloat(document.getElementById("gTarget").value);
+  if(!name){ toast("Enter a goal name"); return; }
+  if(!(tgt>0)){ toast("Enter a target amount"); return; }
+  if(GEDIT){ const g=DB.goals.find(x=>x.id===GEDIT); if(g){ g.name=name; g.current=cur; g.target=tgt; } }
+  else DB.goals.push({id:"gl"+Date.now()+Math.random().toString(36).slice(2,5), kind:GKIND, name, current:cur, target:tgt});
+  save(); closeGoalModal(); renderInvest(); toast("Saved ✓");
+}
+function delGoal(id){ goalsInit(); DB.goals=DB.goals.filter(g=>g.id!==id); save(); renderInvest(); }
+
+/* ============================================================= STREAKS */
+function streaksInit(){ if(!Array.isArray(DB.streaks)) DB.streaks=[]; }
+function streakMatchesTxn(st,t){
+  if(!t) return false;
+  if(st.category && t.category!==st.category) return false;
+  if(st.keyword){ const kw=st.keyword.toLowerCase(); const hay=((t.desc||"")+" "+(t.category||"")).toLowerCase(); if(hay.indexOf(kw)<0) return false; }
+  return !!(st.category || st.keyword);
+}
+function earliestTxnISO(){ let m=null; (DB.txns||[]).forEach(t=>{ if(!m||t.date<m) m=t.date; }); return m; }
+function weekStartKey(d){ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); const dow=(x.getDay()+6)%7; x.setDate(x.getDate()-dow); return ymd(x); }  // Monday
+function streakPeriodKey(d,period){ if(period==="day") return ymd(d); if(period==="week") return weekStartKey(d); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+function streakUnit(st){ return st.period==="week"?"week":st.period==="month"?"month":"day"; }
+function streakStats(st){
+  const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const created = st.created?parse(st.created):today;
+  const eIso=earliestTxnISO(); const first = eIso?parse(eIso):created;
+  let anchor = first<created?first:created;
+  const cap=new Date(today); cap.setFullYear(cap.getFullYear()-4); if(anchor<cap) anchor=cap;
+  const matched={};
+  (DB.txns||[]).forEach(t=>{ if(streakMatchesTxn(st,t)){ const dt=parse(t.date); if(dt<=now) matched[streakPeriodKey(dt,st.period)]=t.date; } });
+  const unit=streakUnit(st);
+  if(st.kind!=="do"){
+    // avoidance — count clean days
+    let cur=0,best=0,lastBroken=null,guard=0;
+    for(let d=new Date(anchor); d<=today && guard++<2200; d.setDate(d.getDate()+1)){
+      const k=ymd(d);
+      if(matched[k]){ cur=0; lastBroken=k; } else { cur++; if(cur>best) best=cur; }
+    }
+    return {current:cur,best,lastBroken,active:!matched[ymd(today)],unit};
+  }
+  // consistency — count consecutive weeks/months with a match
+  const keys=[]; const seen={}; let guard=0;
+  for(let d=new Date(anchor); d<=today && guard++<2200; d.setDate(d.getDate()+1)){ const k=streakPeriodKey(d,st.period); if(!seen[k]){ seen[k]=true; keys.push(k); } }
+  const hit=k=>!!matched[k];
+  let best=0,run=0; keys.forEach(k=>{ if(hit(k)){run++; if(run>best)best=run;} else run=0; });
+  const curKey=keys[keys.length-1], curHit=hit(curKey);
+  let i=keys.length-1; if(!curHit) i--;   // current period still in progress -> don't break
+  let cur=0; while(i>=0 && hit(keys[i])){ cur++; i--; }
+  let lastBroken=null;
+  for(let j=keys.length-1;j>=0;j--){ if(keys[j]===curKey && !curHit) continue; if(!hit(keys[j])){ lastBroken=keys[j]; break; } }
+  return {current:cur,best,lastBroken,active:(cur>0||curHit),unit};
+}
+function monthLabelKey(k){ const pp=k.split("-"); return new Date(+pp[0],(+pp[1])-1,1).toLocaleDateString("en-GB",{month:"short",year:"numeric"}); }
+function streakBrokenLabel(st,k){ if(!k) return ""; if(st.period==="month") return monthLabelKey(k); if(st.period==="week") return "week of "+fmtDateY(k); return fmtDateY(k); }
+function streakCriteria(st){
+  const bits=[ st.kind==="do" ? (st.period==="week"?"Weekly":"Monthly") : "Daily" ];
+  if(st.category) bits.push(st.category);
+  if(st.keyword) bits.push('"'+st.keyword+'"');
+  return bits.join(" · ");
+}
+function renderProgress(){ renderXP(); renderStreaks(); renderMastery(); }
+function renderStreaks(){
+  streaksInit();
+  const list=document.getElementById("streakList"); if(!list) return;
+  if(!DB.streaks.length){ list.innerHTML='<div class="tiny muted" style="padding:2px 0">No streaks yet — add one below.</div>'; return; }
+  list.innerHTML=DB.streaks.map(st=>{
+    const s=streakStats(st), u=s.unit;
+    const col=s.active?"var(--green)":"var(--red)";
+    const status = st.kind==="do" ? (s.active?"Active":"Broken") : (s.active?"Active":"Slipped today");
+    const lb=streakBrokenLabel(st,s.lastBroken);
+    return `<div class="streak">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+          <span style="font-weight:700">🔥 ${st.name}</span>
+          <span class="tiny" style="color:${col};font-weight:700">${status}</span>
+        </div>
+        <div style="display:flex;gap:22px;margin-top:8px">
+          <div><div style="font-size:24px;font-weight:800">${s.current}</div><div class="tiny muted">current ${u}${s.current===1?"":"s"}</div></div>
+          <div><div style="font-size:24px;font-weight:800">${s.best}</div><div class="tiny muted">best ever</div></div>
+        </div>
+        <div class="tiny muted" style="margin-top:8px">${streakCriteria(st)}${s.lastBroken?" · last broken "+lb:""}</div>
+        <div class="catrow-btns" style="margin-top:8px">
+          <button class="btn sec" onclick="editStreak('${st.id}')">Edit</button>
+          <button class="btn danger" onclick="delStreak('${st.id}')">Delete</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+function populateStreakCat(sel){ const el=document.getElementById("stCat"); if(!el) return; el.innerHTML='<option value="">Any category</option>'+allCats().map(c=>`<option>${c.name}</option>`).join(""); if(sel!=null) el.value=sel; }
+function stKindChange(){ const k=document.getElementById("stKind").value; document.getElementById("stFreqWrap").style.display = k==="do"?"block":"none"; }
+let SEDIT=null;
+function openStreakModal(){ streaksInit(); SEDIT=null; document.getElementById("streakModalTitle").textContent="New streak"; document.getElementById("stName").value=""; document.getElementById("stKind").value="avoid"; document.getElementById("stPeriod").value="month"; document.getElementById("stKw").value=""; populateStreakCat(""); stKindChange(); document.getElementById("streakModal").classList.add("on"); }
+function editStreak(id){ streaksInit(); const st=DB.streaks.find(x=>x.id===id); if(!st) return; SEDIT=id; document.getElementById("streakModalTitle").textContent="Edit streak"; document.getElementById("stName").value=st.name||""; document.getElementById("stKind").value=st.kind; document.getElementById("stPeriod").value=(st.period==="week"?"week":"month"); document.getElementById("stKw").value=st.keyword||""; populateStreakCat(st.category||""); stKindChange(); document.getElementById("streakModal").classList.add("on"); }
+function closeStreakModal(){ document.getElementById("streakModal").classList.remove("on"); SEDIT=null; }
+function saveStreak(){
+  streaksInit();
+  const name=document.getElementById("stName").value.trim();
+  const kind=document.getElementById("stKind").value;
+  const category=document.getElementById("stCat").value;
+  const keyword=document.getElementById("stKw").value.trim();
+  const period = kind==="do" ? document.getElementById("stPeriod").value : "day";
+  if(!name){ toast("Enter a name"); return; }
+  if(!category && !keyword){ toast("Pick a category or a keyword"); return; }
+  if(SEDIT){ const st=DB.streaks.find(x=>x.id===SEDIT); if(st){ st.name=name; st.kind=kind; st.category=category; st.keyword=keyword; st.period=period; } }
+  else DB.streaks.push({id:"st"+Date.now()+Math.random().toString(36).slice(2,5), name, kind, category, keyword, period, created:todayISO()});
+  save(); closeStreakModal(); renderStreaks(); toast("Saved ✓");
+}
+function delStreak(id){ streaksInit(); DB.streaks=DB.streaks.filter(x=>x.id!==id); save(); renderStreaks(); }
+
+/* ============================================================= CATEGORY MASTERY */
+const MASTERY=[{n:"Novice",mp:0},{n:"Apprentice",mp:50},{n:"Skilled",mp:150},{n:"Expert",mp:300},{n:"Master",mp:550},{n:"Grandmaster",mp:900}];
+function masteryRank(mp){ let rank=MASTERY[0], next=MASTERY[1]||null; for(let i=0;i<MASTERY.length;i++){ if(mp>=MASTERY[i].mp){ rank=MASTERY[i]; next=MASTERY[i+1]||null; } } return {rank,next}; }
+function masteryProgress(mp){ const {rank,next}=masteryRank(mp); if(!next) return 100; return Math.min(100,Math.round((mp-rank.mp)/(next.mp-rank.mp)*100)); }
+function completedMonthsFor(cat){
+  const now=new Date(), curKey=now.getFullYear()*12+now.getMonth();
+  let firstK=null;
+  (DB.txns||[]).forEach(t=>{ if(t.category!==cat.name) return; const dt=parse(t.date); const k=dt.getFullYear()*12+dt.getMonth(); if(firstK===null||k<firstK) firstK=k; });
+  if(firstK===null) return [];
+  const out=[];
+  for(let k=firstK; k<curKey; k++){ const y=Math.floor(k/12), m=((k%12)+12)%12; const mk=mkKey(y,m); out.push({mk, spend:catNetInMonth(cat.name,y,m), target:monthTargetFor(cat,mk)}); }
+  return out;
+}
+function masteryStats(cat){
+  const months=completedMonthsFor(cat);
+  let mp=0,best=Infinity,consec=0,monthsUnder=0,spendSum=0,spendCount=0;
+  months.forEach(m=>{
+    const under = m.target>0 && m.spend<=m.target;
+    if(under){ mp+=10; consec++; if(consec>=2) mp+=5; monthsUnder++; } else consec=0;
+    if(m.spend>0){ spendSum+=m.spend; spendCount++; if(m.spend<best){ if(best!==Infinity) mp+=15; best=m.spend; } }
+  });
+  const now=new Date();
+  const curSpend=catNetInMonth(cat.name, now.getFullYear(), now.getMonth());
+  const curTarget=monthTargetFor(cat, mkKey(now.getFullYear(), now.getMonth()));
+  const ri=masteryRank(mp);
+  const bestVal = best===Infinity? null : best;
+  const objective = curTarget>0 ? ("Spend under "+gbp(curTarget)+" this month") : (bestVal!=null ? ("Beat your best of "+gbp(bestVal)) : "Set a target to unlock objectives");
+  return {mp, rankInfo:ri, progress:masteryProgress(mp), avg:(spendCount?spendSum/spendCount:0), best:bestVal, currentMonth:curSpend, curTarget, consecUnder:consec, monthsUnder, objective, completedCount:months.length};
+}
+function renderMastery(){
+  const list=document.getElementById("masteryList"); if(!list) return;
+  const cats=activeCats().filter(c=>c.group!=="Savings");
+  if(!cats.length){ list.innerHTML='<div class="tiny muted" style="padding:2px 0">No spending categories yet.</div>'; return; }
+  const rows=cats.map(c=>({c, m:masteryStats(c)})).sort((a,b)=>b.m.mp-a.m.mp || a.c.name.localeCompare(b.c.name));
+  list.innerHTML=rows.map(({c,m})=>{
+    const next=m.rankInfo.next, toNext=next?Math.max(0,next.mp-m.mp):0;
+    const beat = m.currentMonth>0 && m.best!=null && m.currentMonth<m.best;
+    const underNow = m.curTarget>0 && m.currentMonth<=m.curTarget;
+    const note = beat ? "🔥 On track to beat your personal best" : (m.curTarget>0 ? (underNow?"Under target so far this month":"Over target this month") : "");
+    const noteCol = (beat||underNow) ? "var(--green)" : "var(--muted)";
+    return `<div class="mastery">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+          <span style="font-weight:700"><span class="dot" style="background:${c.color}"></span> ${c.name}</span>
+          <span style="background:rgba(59,130,246,.18);color:var(--blue);font-size:10px;font-weight:700;padding:3px 9px;border-radius:6px;letter-spacing:.3px">${m.rankInfo.rank.n}</span>
+        </div>
+        <div style="display:flex;gap:18px;margin-top:8px;flex-wrap:wrap">
+          <div><div class="tiny muted">Average</div><div style="font-weight:700">${gbp(m.avg)}</div></div>
+          <div><div class="tiny muted">Personal best</div><div style="font-weight:700">${m.best!=null?gbp(m.best):"—"}</div></div>
+          <div><div class="tiny muted">This month</div><div style="font-weight:700">${gbp(m.currentMonth)}</div></div>
+        </div>
+        ${note?`<div class="tiny" style="margin-top:6px;color:${noteCol};font-weight:600">${note}</div>`:""}
+        ${m.consecUnder>0?`<div class="tiny muted" style="margin-top:2px">Current streak: ${m.consecUnder} month${m.consecUnder===1?"":"s"} under target · ${m.monthsUnder} in total</div>`:""}
+        <div class="bar" style="height:9px;margin-top:8px"><span style="width:${m.progress}%;background:var(--accent)"></span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:5px">
+          <span class="tiny muted">${m.mp} MP${next?" · "+toNext+" to "+next.n:" · max rank"}</span>
+          <span class="tiny muted">${m.progress}%</span>
+        </div>
+        <div class="tiny muted" style="margin-top:6px">Next: ${m.objective}</div>
+      </div>`;
+  }).join("");
+}
+
+/* ============================================================= XP & LEVELS
+   Total XP is recomputed from your whole history, so it can never be lost or
+   double-counted and it survives edits and backup imports. */
+function firstTxnKey(){ let k=null; (DB.txns||[]).forEach(t=>{ const dt=parse(t.date); const kk=dt.getFullYear()*12+dt.getMonth(); if(k===null||kk<k) k=kk; }); return k; }
+function completedMonthKeys(){ const k0=firstTxnKey(); if(k0===null) return []; const now=new Date(); const cur=now.getFullYear()*12+now.getMonth(); const out=[]; for(let k=k0;k<cur;k++){ const y=Math.floor(k/12), m=((k%12)+12)%12; out.push({y,m,mk:mkKey(y,m)}); } return out; }
+function categoryPBcount(cat){ let best=Infinity,c=0; completedMonthsFor(cat).forEach(m=>{ if(m.spend>0){ if(m.spend<best){ if(best!==Infinity) c++; best=m.spend; } } }); return c; }
+function gradeScoreForMonth(y,m){
+  const mk=mkKey(y,m);
+  let expFlex=0, expNeedsFull=0, expSavFull=0;
+  activeCats().forEach(c=>{ const t=monthTargetFor(c,mk); if(t<=0) return; if(c.group==="Savings") expSavFull+=t; else if(isFlex(c)) expFlex+=t; else expNeedsFull+=t; });
+  if(expFlex<=0) return null;
+  let actFlex=0,actNeeds=0,actSav=0;
+  activeCats().forEach(c=>{ const v=Math.max(0,catNetInMonth(c.name,y,m)); if(c.group==="Savings") actSav+=v; else if(isFlex(c)) actFlex+=v; else actNeeds+=v; });
+  let score=gradeScoreFromRatio(actFlex/expFlex);
+  if(expNeedsFull>0){ const over=Math.max(0,actNeeds-expNeedsFull); score-=Math.min(15,over/expNeedsFull*30); }
+  if(expSavFull>0){ const sh=Math.max(0,expSavFull-actSav); score-=Math.min(12,sh/expSavFull*15); }
+  return Math.max(0,Math.min(100,score));
+}
+function noSpendWeekends(){
+  let firstDate=null; (DB.txns||[]).forEach(t=>{ if(firstDate===null||t.date<firstDate) firstDate=t.date; });
+  if(!firstDate) return 0;
+  const spendDays=new Set(); (DB.txns||[]).forEach(t=>{ if(t.amount<0) spendDays.add(t.date); });
+  const start=parse(firstDate); const now=new Date(); const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  let count=0, guard=0;
+  let d=new Date(start); while(d.getDay()!==6 && guard++<4000) d.setDate(d.getDate()+1);   // first Saturday on/after start
+  for(; guard++<4000; d.setDate(d.getDate()+7)){
+    const sat=new Date(d), sun=new Date(d); sun.setDate(sun.getDate()+1);
+    if(sun>today) break;                 // weekend not finished yet
+    if(sat<start) continue;
+    if(!spendDays.has(ymd(sat)) && !spendDays.has(ymd(sun))) count++;
+  }
+  return count;
+}
+function xpBreakdown(){
+  const items=[];
+  const spendCats=activeCats().filter(c=>c.group!=="Savings");
+  const flexCats=activeCats().filter(c=>isFlex(c));
+  // 1. days you logged spending (+5 each)
+  const days=new Set(); (DB.txns||[]).forEach(t=>{ if(t.amount<0) days.add(t.date); });
+  items.push({label:"Days you logged spending", count:days.size, xp:days.size*5});
+  // 2. category targets met (+50) & 6. new personal bests (+200)
+  let targetsHit=0, pbs=0;
+  spendCats.forEach(c=>{ targetsHit+=masteryStats(c).monthsUnder; pbs+=categoryPBcount(c); });
+  items.push({label:"Category targets met", count:targetsHit, xp:targetsHit*50});
+  items.push({label:"New personal bests", count:pbs, xp:pbs*200});
+  // 3. months under overall budget (+500), 4. A grades (+250), 5. beat prev discretionary (+150)
+  let underBudget=0, aGrades=0, improved=0, prevFlex=null;
+  completedMonthKeys().forEach(mo=>{
+    const budget=spendCats.reduce((a,c)=>a+monthTargetFor(c,mo.mk),0);
+    const sp=spendCats.reduce((a,c)=>a+Math.max(0,catNetInMonth(c.name,mo.y,mo.m)),0);
+    if(budget>0 && sp<=budget) underBudget++;
+    const g=gradeScoreForMonth(mo.y,mo.m); if(g!=null && g>=90) aGrades++;
+    const fx=flexCats.reduce((a,c)=>a+Math.max(0,catNetInMonth(c.name,mo.y,mo.m)),0);
+    if(prevFlex!=null && fx<prevFlex) improved++;
+    prevFlex=fx;
+  });
+  items.push({label:"Months under overall budget", count:underBudget, xp:underBudget*500});
+  items.push({label:"A grades earned", count:aGrades, xp:aGrades*250});
+  items.push({label:"Months you cut discretionary spend", count:improved, xp:improved*150});
+  // 7,8. months you added to savings / investments (+40 each)
+  const savM=new Set(), invM=new Set();
+  (DB.txns||[]).forEach(t=>{ if(t.amount>=0) return; const dt=parse(t.date); const ym=mkKey(dt.getFullYear(),dt.getMonth()); if(t.category==="Savings") savM.add(ym); if(t.category==="Investments") invM.add(ym); });
+  items.push({label:"Months you added to savings", count:savM.size, xp:savM.size*40});
+  items.push({label:"Months you invested", count:invM.size, xp:invM.size*40});
+  // 9. no-spend weekends (+60)
+  const nsw=noSpendWeekends();
+  items.push({label:"No-spend weekends", count:nsw, xp:nsw*60});
+  // 10. 30-day streaks reached (+150)
+  streaksInit(); let big=0;
+  DB.streaks.forEach(st=>{ if(st.kind!=="do" && streakStats(st).best>=30) big++; });
+  items.push({label:"30-day streaks reached", count:big, xp:big*150});
+  const total=items.reduce((a,i)=>a+i.xp,0);
+  return {total, items};
+}
+function totalXP(){ return xpBreakdown().total; }
+function xpLevel(total){
+  let lvl=1, floor=0, need=500, guard=0;
+  while(total>=floor+need && guard++<100000){ floor+=need; lvl++; need=500+(lvl-1)*250; }
+  return {level:lvl, into:total-floor, need, floor};
+}
+function renderXP(){
+  const card=document.getElementById("xpCard"); if(!card) return;
+  const b=xpBreakdown(), lv=xpLevel(b.total);
+  document.getElementById("xpLevel").textContent="Level "+lv.level;
+  document.getElementById("xpTotal").textContent=b.total.toLocaleString()+" XP total";
+  document.getElementById("xpBar").style.width=Math.round(lv.into/lv.need*100)+"%";
+  document.getElementById("xpInto").textContent=lv.into.toLocaleString()+" / "+lv.need.toLocaleString()+" XP to Level "+(lv.level+1);
+  const rows=b.items.filter(i=>i.count>0);
+  document.getElementById("xpBreak").innerHTML = rows.length
+    ? rows.map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line)"><span class="tiny">${i.label} <span class="muted">×${i.count}</span></span><span class="tiny" style="color:var(--green);font-weight:700">+${i.xp.toLocaleString()}</span></div>`).join("")
+    : '<div class="tiny muted">Log transactions, hit targets and build streaks to start earning XP.</div>';
+}
+function celebrateLevel(lvl){
+  toast("Level "+lvl+"! 🎉");
+  const c=document.getElementById("xpCard"); if(c){ c.classList.remove("levelup"); void c.offsetWidth; c.classList.add("levelup"); setTimeout(()=>{ c.classList.remove("levelup"); },1400); }
+}
+function checkLevelUp(){
+  const lvl=xpLevel(totalXP()).level;
+  if(typeof DB.xpSeenLevel!=="number"){ DB.xpSeenLevel=lvl; save(); return; }
+  if(lvl>DB.xpSeenLevel){ DB.xpSeenLevel=lvl; save(); celebrateLevel(lvl); }
+}
 function renderInvest(){
   renderSavings();
+  renderGoalsInto("savings","savGoalsList"); renderGoalsInto("invest","invGoalsList");
   invInit();
   populateDob();
   const gr=document.getElementById("invGrowth"); if(gr) gr.value=(DB.invest.annualGrowth==null?"":DB.invest.annualGrowth);
@@ -1935,7 +2332,7 @@ function renderInvest(){
   renderInvPortList();
   renderInvProjection();
 }
-function refreshAll(){ renderDash(); renderRec(); updPendBadge(); updOrphanBadge(); if(document.getElementById("page-tx").classList.contains("on")) renderTx(); }
+function refreshAll(){ renderDash(); renderRec(); updPendBadge(); updOrphanBadge(); if(document.getElementById("page-tx").classList.contains("on")) renderTx(); try{ checkLevelUp(); }catch(e){} }
 function updOrphanBadge(){ const n=DB.txns?DB.txns.filter(isOrphan).length:0; const b=document.getElementById("orphanBadge"); if(b){ b.style.display=n>0?"flex":"none"; b.textContent=n; } }
 function updPendBadge(){
   const n=pendingItems().length;
@@ -2065,6 +2462,7 @@ setFlow("out");
 renderPeriods();
 renderDash();
 updPendBadge();
+try{ checkLevelUp(); }catch(e){}
 requireAuth();   // show login / create-account overlay on open
 recoverIfNeeded();   // if storage was wiped, restore from the durable IndexedDB copy before anything else
 
