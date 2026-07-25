@@ -68,6 +68,10 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transf
 .streak:last-child{border-bottom:none;}
 .mastery{padding:14px 0;border-bottom:1px solid var(--line);}
 .mastery:last-child{border-bottom:none;}
+.mrow{border:none;border-radius:0;background:transparent;margin-bottom:0;border-bottom:1px solid var(--line);}
+.mrow:last-child{border-bottom:none;}
+.mrow>.acc-head{padding:12px 2px;font-size:15px;}
+.mrow>.acc-body{padding:0 2px 12px;}
 @keyframes lvlglow{0%{box-shadow:0 0 0 0 rgba(16,185,129,.55)}100%{box-shadow:0 0 0 16px rgba(16,185,129,0)}}
 .levelup{animation:lvlglow 1.2s ease-out;}
 .meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:5px;}
@@ -330,18 +334,25 @@ canvas{max-width:100%;}
       </div>
       <div class="bar" style="height:12px;margin-top:10px"><span id="xpBar" style="width:0%;background:var(--accent)"></span></div>
       <div class="tiny muted" style="margin-top:6px" id="xpInto">0 / 500 XP to Level 2</div>
-      <div id="xpBreak" style="margin-top:12px"></div>
     </div>
-    <div class="card">
-      <h2 style="margin-top:2px">Streaks</h2>
-      <p class="note">Track habits like "no takeaways" or "add to savings weekly". A streak counts automatically from your transactions and only resets when a qualifying one is logged.</p>
-      <div id="streakList" style="margin-top:6px"></div>
-      <button class="btn sec" style="margin-top:10px" onclick="openStreakModal()">New streak</button>
+    <div class="acc" id="accXpBreak">
+      <div class="acc-head" onclick="toggleAcc('accXpBreak')"><span>Where your XP came from</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body"><div id="xpBreak"></div></div>
     </div>
-    <div class="card">
-      <h2 style="margin-top:2px">Category mastery</h2>
-      <p class="note">Each spending category earns a permanent mastery level as you consistently stay under target and set new personal bests. It never goes down — a tough month just pauses your progress. Based only on your own history.</p>
-      <div id="masteryList" style="margin-top:6px"></div>
+    <div class="acc open" id="accStreaks">
+      <div class="acc-head" onclick="toggleAcc('accStreaks')"><span>Streaks</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="note">Track habits like "no takeaways" or "add to savings weekly". A streak counts automatically from your transactions and only resets when a qualifying one is logged.</p>
+        <div id="streakList" style="margin-top:6px"></div>
+        <button class="btn sec" style="margin-top:10px" onclick="openStreakModal()">New streak</button>
+      </div>
+    </div>
+    <div class="acc open" id="accMastery">
+      <div class="acc-head" onclick="toggleAcc('accMastery')"><span>Category mastery</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="note">Each spending category earns a permanent mastery level as you consistently stay under target and set new personal bests. It never goes down — a tough month just pauses your progress. Tap a category to expand it.</p>
+        <div id="masteryList" style="margin-top:6px"></div>
+      </div>
     </div>
   </div>
 
@@ -432,30 +443,10 @@ canvas{max-width:100%;}
     <p class="tiny muted" style="text-align:center;padding:10px 0 4px">Money Tracker · private · stored on this device only</p>
   </div>
 
-  <!-- ============ OBJECTIVES ============ -->
-  <div class="page" id="page-goals">
-    <h1>Objectives</h1>
-    <p class="sub">Set a spending limit by a date and watch your wiggle room. Counts your variable spending — Wants plus any Needs you've flagged for grading. Fixed bills and savings don't count.</p>
-    <div class="card">
-      <h2 style="margin-top:2px">Your objectives</h2>
-      <div id="goalsList"></div>
-    </div>
-    <div class="card">
-      <h2 style="margin-top:2px">New objective</h2>
-      <p class="note">For example: spend under £80 by 5 August.</p>
-      <div class="field"><label>Spend under (£)</label><input type="number" id="objAmt" inputmode="decimal" placeholder="£"></div>
-      <div class="row">
-        <div><label>From</label><input type="date" id="objFrom"></div>
-        <div><label>By</label><input type="date" id="objBy"></div>
-      </div>
-      <button class="btn" style="margin-top:10px" onclick="addObjective()">Set objective</button>
-    </div>
-  </div>
-
   <!-- ============ INVESTMENT PLANNER ============ -->
   <div class="page" id="page-invest">
     <h1>Savings</h1>
-    <p class="sub">Track your savings and your investments.</p>
+    <p class="sub">Track your savings, investments and spending objectives.</p>
 
     <div class="acc open" id="accSav">
       <div class="acc-head" onclick="toggleAcc('accSav')"><span>Savings</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
@@ -543,6 +534,27 @@ canvas{max-width:100%;}
 
       </div>
     </div>
+
+    <div class="acc" id="accObj">
+      <div class="acc-head" onclick="toggleAcc('accObj')"><span>Objectives</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="note">Set a spending limit by a date and watch your wiggle room. Counts your variable spending — Wants plus any Needs flagged for grading. Fixed bills and savings don't count.</p>
+        <div class="card">
+          <h2 style="margin-top:2px">Your objectives</h2>
+          <div id="goalsList"></div>
+        </div>
+        <div class="card">
+          <h2 style="margin-top:2px">New objective</h2>
+          <p class="note">For example: spend under £80 by 5 August.</p>
+          <div class="field"><label>Spend under (£)</label><input type="number" id="objAmt" inputmode="decimal" placeholder="£"></div>
+          <div class="row">
+            <div><label>From</label><input type="date" id="objFrom"></div>
+            <div><label>By</label><input type="date" id="objBy"></div>
+          </div>
+          <button class="btn" style="margin-top:10px" onclick="addObjective()">Set objective</button>
+        </div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -553,7 +565,6 @@ canvas{max-width:100%;}
   <button data-tab="tx" onclick="go('tx')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History<span class="badge" id="orphanBadge" style="display:none">0</span></button>
   <button data-tab="add" onclick="go('add')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add<span class="tabdot" id="addDot" style="display:none"></span></button>
   <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 5h6v6"/></svg>Savings</button>
-  <button data-tab="goals" onclick="go('goals')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none"/></svg>Goals</button>
   <button data-tab="progress" onclick="go('progress')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1.8 2.6 4.5 3.8 4.5 7.5a4.5 4.5 0 0 1-9 0c0-1.7.8-3 2-4 .1 1.5 1 2.4 2 2.6-.7-2 .1-4 .5-6.1z"/></svg>Streaks</button>
   <button data-tab="set" onclick="go('set')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
 </div>
@@ -1861,7 +1872,6 @@ function go(tab){
   if(tab==="tx"){ renderTxFilter(); renderTx(); }
   if(tab==="set") renderSettings();
   if(tab==="invest") renderInvest();
-  if(tab==="goals") renderGoals();
   if(tab==="progress") renderProgress();
   window.scrollTo(0,0);
 }
@@ -2184,38 +2194,45 @@ function masteryStats(cat){
   const objective = curTarget>0 ? ("Spend under "+gbp(curTarget)+" this month") : (bestVal!=null ? ("Beat your best of "+gbp(bestVal)) : "Set a target to unlock objectives");
   return {mp, rankInfo:ri, progress:masteryProgress(mp), avg:(spendCount?spendSum/spendCount:0), best:bestVal, currentMonth:curSpend, curTarget, consecUnder:consec, monthsUnder, objective, completedCount:months.length};
 }
+let MASTERY_OPEN=new Set();
+function toggleMasteryCat(id){ if(MASTERY_OPEN.has(id)) MASTERY_OPEN.delete(id); else MASTERY_OPEN.add(id); renderMastery(); }
 function renderMastery(){
   const list=document.getElementById("masteryList"); if(!list) return;
   const cats=activeCats().filter(c=>c.group!=="Savings");
   if(!cats.length){ list.innerHTML='<div class="tiny muted" style="padding:2px 0">No spending categories yet.</div>'; return; }
   const rows=cats.map(c=>({c, m:masteryStats(c)})).sort((a,b)=>b.m.mp-a.m.mp || a.c.name.localeCompare(b.c.name));
   list.innerHTML=rows.map(({c,m})=>{
+    const open=MASTERY_OPEN.has(c.id);
     const next=m.rankInfo.next, toNext=next?Math.max(0,next.mp-m.mp):0;
     const beat = m.currentMonth>0 && m.best!=null && m.currentMonth<m.best;
     const underNow = m.curTarget>0 && m.currentMonth<=m.curTarget;
     const note = beat ? "🔥 On track to beat your personal best" : (m.curTarget>0 ? (underNow?"Under target so far this month":"Over target this month") : "");
     const noteCol = (beat||underNow) ? "var(--green)" : "var(--muted)";
-    return `<div class="mastery">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
-          <span style="font-weight:700"><span class="dot" style="background:${c.color}"></span> ${c.name}</span>
-          <span style="background:rgba(59,130,246,.18);color:var(--blue);font-size:10px;font-weight:700;padding:3px 9px;border-radius:6px;letter-spacing:.3px">${m.rankInfo.rank.n}</span>
+    const chip=`<span style="background:rgba(59,130,246,.18);color:var(--blue);font-size:10px;font-weight:700;padding:3px 9px;border-radius:6px;letter-spacing:.3px">${m.rankInfo.rank.n}</span>`;
+    return `<div class="acc mrow${open?" open":""}">
+        <div class="acc-head" onclick="toggleMasteryCat('${c.id}')">
+          <span style="flex:1;min-width:0;font-weight:700"><span class="dot" style="background:${c.color}"></span> ${c.name}</span>
+          ${chip}${CHEV_SVG}
         </div>
-        <div style="display:flex;gap:18px;margin-top:8px;flex-wrap:wrap">
-          <div><div class="tiny muted">Average</div><div style="font-weight:700">${gbp(m.avg)}</div></div>
-          <div><div class="tiny muted">Personal best</div><div style="font-weight:700">${m.best!=null?gbp(m.best):"—"}</div></div>
-          <div><div class="tiny muted">This month</div><div style="font-weight:700">${gbp(m.currentMonth)}</div></div>
+        <div class="acc-body">
+          <div style="display:flex;gap:18px;margin-top:2px;flex-wrap:wrap">
+            <div><div class="tiny muted">Average</div><div style="font-weight:700">${gbp(m.avg)}</div></div>
+            <div><div class="tiny muted">Personal best</div><div style="font-weight:700">${m.best!=null?gbp(m.best):"—"}</div></div>
+            <div><div class="tiny muted">This month</div><div style="font-weight:700">${gbp(m.currentMonth)}</div></div>
+          </div>
+          ${note?`<div class="tiny" style="margin-top:6px;color:${noteCol};font-weight:600">${note}</div>`:""}
+          ${m.consecUnder>0?`<div class="tiny muted" style="margin-top:2px">Current streak: ${m.consecUnder} month${m.consecUnder===1?"":"s"} under target · ${m.monthsUnder} in total</div>`:""}
+          <div class="bar" style="height:9px;margin-top:8px"><span style="width:${m.progress}%;background:var(--accent)"></span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:5px">
+            <span class="tiny muted">${m.mp} MP${next?" · "+toNext+" to "+next.n:" · max rank"}</span>
+            <span class="tiny muted">${m.progress}%</span>
+          </div>
+          <div class="tiny muted" style="margin-top:6px">Next: ${m.objective}</div>
         </div>
-        ${note?`<div class="tiny" style="margin-top:6px;color:${noteCol};font-weight:600">${note}</div>`:""}
-        ${m.consecUnder>0?`<div class="tiny muted" style="margin-top:2px">Current streak: ${m.consecUnder} month${m.consecUnder===1?"":"s"} under target · ${m.monthsUnder} in total</div>`:""}
-        <div class="bar" style="height:9px;margin-top:8px"><span style="width:${m.progress}%;background:var(--accent)"></span></div>
-        <div style="display:flex;justify-content:space-between;margin-top:5px">
-          <span class="tiny muted">${m.mp} MP${next?" · "+toNext+" to "+next.n:" · max rank"}</span>
-          <span class="tiny muted">${m.progress}%</span>
-        </div>
-        <div class="tiny muted" style="margin-top:6px">Next: ${m.objective}</div>
       </div>`;
   }).join("");
 }
+const CHEV_SVG='<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>';
 
 /* ============================================================= XP & LEVELS
    Total XP is recomputed from your whole history, so it can never be lost or
@@ -2321,6 +2338,7 @@ function checkLevelUp(){
 function renderInvest(){
   renderSavings();
   renderGoalsInto("savings","savGoalsList"); renderGoalsInto("invest","invGoalsList");
+  renderGoals();
   invInit();
   populateDob();
   const gr=document.getElementById("invGrowth"); if(gr) gr.value=(DB.invest.annualGrowth==null?"":DB.invest.annualGrowth);
