@@ -333,15 +333,6 @@ canvas{max-width:100%;}
   <!-- ============ FAMILY ============ -->
   <div class="page" id="page-family">
     <h1>Family</h1>
-    <div class="card">
-      <div class="field"><label>Your name (for sharing)</label><input id="famName" placeholder="e.g. Alex" onchange="saveFamName()"></div>
-      <div class="row" style="margin-top:4px">
-        <button class="btn sec" onclick="openFamShare()">Share my figures</button>
-        <button class="btn sec" onclick="openFamPaste()">Paste an update</button>
-      </div>
-      <div id="famContrib" style="margin-top:10px"></div>
-      <p class="note" style="margin-top:8px">Combines only headline figures and per-category totals — never individual purchases. It's manual and private: share whenever you want to refresh.</p>
-    </div>
     <div class="periods" id="famPeriodSel"></div>
     <div id="famYearPick" style="display:none" class="card"><div><label>Year</label><select id="famYvSel" onchange="applyFamYear()"></select></div></div>
     <div id="famMonthPick" style="display:none" class="card"><div class="row"><div><label>Month</label><select id="famMoMonth" onchange="applyFamMonthly()"></select></div><div><label>Year</label><select id="famMoYear" onchange="applyFamMonthly()"></select></div></div></div>
@@ -364,8 +355,23 @@ canvas{max-width:100%;}
       <button class="on" data-fam="cats" onclick="famToggle('cats')">Categories</button>
       <button data-fam="groups" onclick="famToggle('groups')">Needs / Wants / Savings</button>
     </div>
+    <div class="card" id="famChartCard">
+      <h2 style="margin-top:2px">Where it goes</h2>
+      <canvas id="famChart" height="200"></canvas>
+      <div class="legend" id="famLegend"></div>
+    </div>
     <p class="sub" style="margin-bottom:6px">Tap a row to see who spent what.</p>
     <div class="card" id="famList"></div>
+    <div class="card" style="margin-top:14px">
+      <h2 style="margin-top:2px">Sharing</h2>
+      <div id="famContrib" style="margin-bottom:8px"></div>
+      <div class="field"><label>Your name (defaults to your login name)</label><input id="famName" placeholder="Your name" onchange="saveFamName()"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sec" onclick="openFamShare()">Share my figures</button>
+        <button class="btn sec" onclick="openFamPaste()">Paste an update</button>
+      </div>
+      <p class="note" style="margin-top:8px">Combines only headline figures and per-category totals — never individual purchases. Manual and private: share whenever you want to refresh.</p>
+    </div>
   </div>
 
   <!-- ============ SETTINGS ============ -->
@@ -2523,9 +2529,22 @@ function applyFamMonthly(){ FAMPER.y=+document.getElementById("famMoYear").value
 let FAM_MODE="cats", FAM_OPEN=new Set();
 function famToggle(m){ FAM_MODE=m; document.querySelectorAll("#famToggle button").forEach(b=>b.classList.toggle("on",b.dataset.fam===m)); renderFamily(); }
 function toggleFamRow(key){ if(FAM_OPEN.has(key)) FAM_OPEN.delete(key); else FAM_OPEN.add(key); renderFamily(); }
+let famChart;
+const FAMPAL=["#3b82f6","#ec4899","#10b981","#f59e0b","#8b5cf6","#ef4444","#14b8a6","#f97316","#a855f7","#22c55e","#eab308","#06b6d4"];
+function famDrawChart(rows,totalSpend){
+  const ctx=document.getElementById("famChart"), card=document.getElementById("famChartCard"), leg=document.getElementById("famLegend");
+  if(!ctx||!card||!leg) return;
+  if(typeof Chart==="undefined"){ card.style.display="none"; return; }
+  if(!rows.length){ if(famChart){ famChart.destroy(); famChart=null; } card.style.display="none"; return; }
+  card.style.display="block";
+  const pct=r=>totalSpend>0?Math.round(r.total/totalSpend*100):0;
+  if(famChart) famChart.destroy();
+  famChart=new Chart(ctx,{type:"doughnut",data:{labels:rows.map(r=>r.label),datasets:[{data:rows.map(r=>Math.round(r.total)),backgroundColor:rows.map(r=>r.col),borderColor:"#1e293b",borderWidth:2}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>" "+c.label+": £"+c.parsed.toLocaleString()+" ("+pct(rows[c.dataIndex])+"%)"}}},cutout:"62%"}});
+  leg.innerHTML=rows.map(r=>`<div><span class="dot" style="background:${r.col}"></span>${r.label} ${gbp(r.total)} · ${pct(r)}%</div>`).join("");
+}
 function renderFamily(){
   familyInit();
-  const nameI=document.getElementById("famName"); if(nameI && document.activeElement!==nameI) nameI.value=DB.family.myName||"";
+  const nameI=document.getElementById("famName"); if(nameI && document.activeElement!==nameI) nameI.value=DB.family.myName||curName();
   if(!document.getElementById("famPeriodSel").innerHTML) renderFamPeriods();
   const list=famContributors();
   const A=famAggregate(list, famMonthKeys());
@@ -2549,7 +2568,9 @@ function renderFamily(){
   const rows = FAM_MODE==="cats"
     ? A.catsArr.map(c=>({key:"c:"+c.name.toLowerCase(),label:c.name,total:c.total,parts:c.parts}))
     : A.groupsArr.map(g=>({key:"g:"+g.group,label:g.group,total:g.total,parts:g.parts}));
-  const listEl=document.getElementById("famList"), totalSpend=A.spend||0;
+  const totalSpend=A.spend||0;
+  famDrawChart(rows.filter(r=>r.total>0).map((r,i)=>({label:r.label,total:r.total,col: FAM_MODE==="groups"?(GROUP_COLORS[r.label]||"#64748b"):FAMPAL[i%FAMPAL.length]})), totalSpend);
+  const listEl=document.getElementById("famList");
   listEl.innerHTML = rows.length ? rows.map(r=>{
     const open=FAM_OPEN.has(r.key), pctOfSpend=totalSpend>0?Math.round(r.total/totalSpend*100):0;
     let h=`<div class="famrow"><div onclick="toggleFamRow('${r.key.replace(/'/g,"\\'")}')" style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;cursor:pointer">
