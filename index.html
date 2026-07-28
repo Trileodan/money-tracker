@@ -137,6 +137,9 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transf
 .seg button.on{background:var(--accent);color:#06281d;}
 .strbox{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px;cursor:pointer;}
 .strbox.open{grid-column:1 / -1;}
+.famrow{padding:12px 0;border-bottom:1px solid var(--line);}
+.famrow:last-child{border-bottom:none;}
+.famta{width:100%;box-sizing:border-box;height:96px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--txt);font-family:monospace;font-size:12px;}
 .seg button.on.in{background:var(--green);color:#06281d;}
 .seg button.on.out{background:var(--red);color:#fff;}
 
@@ -326,6 +329,44 @@ canvas{max-width:100%;}
   </div>
 
   <!-- ============ PROGRESS ============ -->
+
+  <!-- ============ FAMILY ============ -->
+  <div class="page" id="page-family">
+    <h1>Family</h1>
+    <div class="card">
+      <div class="field"><label>Your name (for sharing)</label><input id="famName" placeholder="e.g. Alex" onchange="saveFamName()"></div>
+      <div class="row" style="margin-top:4px">
+        <button class="btn sec" onclick="openFamShare()">Share my figures</button>
+        <button class="btn sec" onclick="openFamPaste()">Paste an update</button>
+      </div>
+      <div id="famContrib" style="margin-top:10px"></div>
+      <p class="note" style="margin-top:8px">Combines only headline figures and per-category totals — never individual purchases. It's manual and private: share whenever you want to refresh.</p>
+    </div>
+    <div class="periods" id="famPeriodSel"></div>
+    <div id="famYearPick" style="display:none" class="card"><div><label>Year</label><select id="famYvSel" onchange="applyFamYear()"></select></div></div>
+    <div id="famMonthPick" style="display:none" class="card"><div class="row"><div><label>Month</label><select id="famMoMonth" onchange="applyFamMonthly()"></select></div><div><label>Year</label><select id="famMoYear" onchange="applyFamMonthly()"></select></div></div></div>
+    <div class="tiles">
+      <div class="tile"><div class="lab">Income</div><div class="val pos" id="famIncome">£0</div></div>
+      <div class="tile"><div class="lab">Spending</div><div class="val neg" id="famSpend">£0</div></div>
+      <div class="tile"><div class="lab">Left over</div><div class="val" id="famNet">£0</div></div>
+      <div class="tile"><div class="lab">Into savings</div><div class="val" id="famSave">£0</div></div>
+    </div>
+    <div class="card" id="famGrade" style="display:none">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div id="famGradeLetter" style="font-size:32px;font-weight:800;letter-spacing:-1px;min-width:62px;text-align:center;border-radius:14px;padding:10px 4px"></div>
+        <div style="flex:1;min-width:0">
+          <div id="famGradeVerdict" style="font-weight:700;font-size:16px"></div>
+          <div id="famGradeDetail" class="tiny muted" style="margin-top:3px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="seg" id="famToggle" style="margin:4px 0 12px">
+      <button class="on" data-fam="cats" onclick="famToggle('cats')">Categories</button>
+      <button data-fam="groups" onclick="famToggle('groups')">Needs / Wants / Savings</button>
+    </div>
+    <p class="sub" style="margin-bottom:6px">Tap a row to see who spent what.</p>
+    <div class="card" id="famList"></div>
+  </div>
 
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
@@ -551,6 +592,7 @@ canvas{max-width:100%;}
   <button data-tab="tx" onclick="go('tx')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History<span class="badge" id="orphanBadge" style="display:none">0</span></button>
   <button data-tab="add" onclick="go('add')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add<span class="tabdot" id="addDot" style="display:none"></span></button>
   <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none"/></svg>Goals</button>
+  <button data-tab="family" onclick="go('family')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M4 20c0-3 2.5-5 5-5s5 2 5 5"/><path d="M16 5.5a3 3 0 0 1 0 5.9"/><path d="M17.5 15c1.9.5 3.5 2 3.5 5"/></svg>Family</button>
   <button data-tab="set" onclick="go('set')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
 </div>
 
@@ -586,6 +628,44 @@ canvas{max-width:100%;}
 </div>
 
 <!-- EDIT CATEGORY MODAL -->
+<div class="modal" id="famScanModal">
+  <div class="sheet">
+    <h2 style="margin-top:0">Scan partner's QR</h2>
+    <p class="tiny muted" id="famScanMsg">Point at your partner's QR code…</p>
+    <video id="famVideo" playsinline muted style="width:100%;border-radius:12px;background:#000"></video>
+    <canvas id="famCanvas" style="display:none"></canvas>
+    <button class="btn sec" style="margin-top:10px" onclick="closeFamScan()">Cancel</button>
+  </div>
+</div>
+
+<div class="modal" id="famShareModal">
+  <div class="sheet">
+    <h2 style="margin-top:0">Share my figures</h2>
+    <p class="note">Send this code to your partner — they paste it into their Family tab. It holds only your per-category totals and headline numbers, no individual purchases.</p>
+    <textarea id="famShareText" class="famta" readonly></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sec" onclick="famCopy()">Copy</button>
+      <button class="btn" onclick="famShareSend()">Share…</button>
+    </div>
+    <div id="famQR" style="margin-top:10px"></div>
+    <p class="tiny muted" style="text-align:center;margin-top:2px">…or let your partner scan this with their Family tab.</p>
+    <button class="btn sec" style="margin-top:8px" onclick="closeFamShare()">Close</button>
+  </div>
+</div>
+
+<div class="modal" id="famPasteModal">
+  <div class="sheet">
+    <h2 style="margin-top:0">Paste an update</h2>
+    <p class="note">Paste the code your partner shared with you.</p>
+    <textarea id="famPasteText" class="famta" placeholder="Paste code here"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sec" onclick="closeFamPaste()">Cancel</button>
+      <button class="btn" onclick="famImport()">Import</button>
+    </div>
+    <button class="btn sec" style="margin-top:8px;width:100%" onclick="openFamScan()">📷 Scan a QR instead</button>
+  </div>
+</div>
+
 <div class="modal" id="streakModal">
   <div class="sheet">
     <h2 id="streakModalTitle" style="margin-top:0">New streak</h2>
@@ -698,6 +778,8 @@ canvas{max-width:100%;}
 
 <div class="toast" id="toast"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
 /* ============================================================= DATA */
 const INCOME_CATS = ["Wages","Other Income"];          // income, not budget categories
@@ -830,6 +912,8 @@ function load(){
   if(!Array.isArray(DB.objectives)) DB.objectives=[];   // [{id,amount,startDate,byDate}] spend-under-by-date goals
   if(!Array.isArray(DB.goals)) DB.goals=[];   // [{id,kind:"savings"|"invest",name,current,target}] progress goals
   if(!Array.isArray(DB.streaks)) DB.streaks=[];   // [{id,name,kind:"avoid"|"do",category,keyword,period,created}]
+  if(!DB.family||typeof DB.family!=="object") DB.family={myName:"",partners:[]};
+  if(!Array.isArray(DB.family.partners)) DB.family.partners=[];
   // migrate: dated income history (one take-home figure per effective month)
   if(!Array.isArray(DB.incomeHistory)){
     const a = DB.regularIncome ? (parseFloat(DB.regularIncome.amount)||0) : 0;
@@ -1883,6 +1967,7 @@ function go(tab){
   if(tab==="tx"){ renderTxFilter(); renderTx(); }
   if(tab==="set") renderSettings();
   if(tab==="invest") renderInvest();
+  if(tab==="family") renderFamily();
   window.scrollTo(0,0);
 }
 /* ============================================================= INVESTMENT PLANNER */
@@ -2336,6 +2421,200 @@ function updPendBadge(){
 }
 let toastT;
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),1600); }
+
+/* ============================================================= FAMILY DASHBOARD
+   Each person shares a per-month breakdown (income, per-category net spend, and
+   grade ingredients). The receiver aggregates for any timeframe and combines a
+   family grade. Spend stays attributed to the month it happened. No transactions,
+   descriptions or dates of individual purchases are ever shared. */
+function familyInit(){ if(!DB.family||typeof DB.family!=="object") DB.family={myName:"",partners:[]}; if(!Array.isArray(DB.family.partners)) DB.family.partners=[]; }
+function familyMyName(){ familyInit(); return (DB.family.myName&&DB.family.myName.trim()) || (CURRENT&&CURRENT.name) || "Me"; }
+function fam_r2(x){ return Math.round((+x||0)*100)/100; }
+function famSelfMonths(){
+  const now=new Date(), curKey=now.getFullYear()*12+now.getMonth();
+  let firstK=curKey; (DB.txns||[]).forEach(t=>{ const dt=parse(t.date); const k=dt.getFullYear()*12+dt.getMonth(); if(k<firstK) firstK=k; });
+  if(firstK<curKey-23) firstK=curKey-23;
+  const months={};
+  for(let k=firstK;k<=curKey;k++){ const y=Math.floor(k/12), m=((k%12)+12)%12, mk=mkKey(y,m);
+    let logged=0; (DB.txns||[]).forEach(t=>{ const dt=parse(t.date); if(dt.getFullYear()!==y||dt.getMonth()!==m) return; if(t.amount>0 && INCOME_CATS.includes(t.category)) logged+=t.amount; });
+    const income=incomeForMonth(y,m)+logged;
+    let ewf=0,enf=0,esf=0, aw=0,an=0,asv=0; const c=[];
+    activeCats().forEach(cat=>{ const t=monthTargetFor(cat,mk); if(t>0){ if(cat.group==="Savings") esf+=t; else if(isFlex(cat)) ewf+=t; else enf+=t; } });
+    activeCats().forEach(cat=>{ const v=Math.max(0,catNetInMonth(cat.name,y,m)); if(v>0) c.push([cat.name,cat.group,fam_r2(v)]); if(cat.group==="Savings") asv+=v; else if(isFlex(cat)) aw+=v; else an+=v; });
+    if(income>0 || c.length) months[mk]={i:fam_r2(income),c,ewf:fam_r2(ewf),enf:fam_r2(enf),esf:fam_r2(esf),aw:fam_r2(aw),an:fam_r2(an),as:fam_r2(asv)};
+  }
+  return months;
+}
+function famSelfSummary(){ familyInit(); return {v:2,name:familyMyName(),date:todayISO(),months:famSelfMonths()}; }
+function famContributors(){ familyInit(); return [famSelfSummary()].concat(DB.family.partners); }
+function encodeSummary(sum){ try{ return "MTF2."+btoa(unescape(encodeURIComponent(JSON.stringify(sum)))); }catch(e){ return ""; } }
+function decodeSummary(code){ try{ code=(code||"").trim(); const m=code.match(/MTF2\.([A-Za-z0-9+/=]+)/); const b64=m?m[1]:code.replace(/\s+/g,""); return JSON.parse(decodeURIComponent(escape(atob(b64)))); }catch(e){ return null; } }
+/* aggregate a list of summaries over a set of month keys -> combined totals, grade components, and per-person splits */
+function famAggregate(contributors, keys){
+  const out={income:0,spend:0,saved:0,net:0, g:{aw:0,ewp:0,ewf:0,an:0,enf:0,as:0,esp:0}, cats:{}, groups:{}};
+  contributors.forEach(s=>{
+    const months=s.months||{}, who=s.name||"?";
+    keys.forEach(mk=>{
+      const md=months[mk]; if(!md) return;
+      const f=monthFraction(mk);
+      out.income+=(+md.i||0);
+      out.g.aw+=(+md.aw||0); out.g.an+=(+md.an||0); out.g.as+=(+md.as||0);
+      out.g.ewp+=(+md.ewf||0)*f; out.g.ewf+=(+md.ewf||0)*(f>0?1:0);
+      out.g.enf+=(+md.enf||0)*(f>0?1:0); out.g.esp+=(+md.esf||0)*f;
+      (md.c||[]).forEach(row=>{ const name=row[0],group=row[1],net=+row[2]||0; if(net<=0) return;
+        out.spend+=net; if(group==="Savings") out.saved+=net;
+        const ck=(name||"").toLowerCase(); if(!out.cats[ck]) out.cats[ck]={name,group,total:0,parts:{}}; out.cats[ck].total+=net; out.cats[ck].parts[who]=(out.cats[ck].parts[who]||0)+net;
+        if(!out.groups[group]) out.groups[group]={group,total:0,parts:{}}; out.groups[group].total+=net; out.groups[group].parts[who]=(out.groups[group].parts[who]||0)+net;
+      });
+    });
+  });
+  out.net=out.income-out.spend;
+  const toArr=o=>Object.keys(o).map(n=>({name:n,amt:o[n]})).sort((a,b)=>b.amt-a.amt);
+  out.catsArr=Object.values(out.cats).map(c=>({name:c.name,group:c.group,total:c.total,parts:toArr(c.parts)})).sort((a,b)=>b.total-a.total);
+  out.groupsArr=Object.keys(out.groups).map(k=>({group:k,total:out.groups[k].total,parts:toArr(out.groups[k].parts)})).sort((a,b)=>b.total-a.total);
+  return out;
+}
+function familyGradeScore(g){
+  if(!(g.ewp>0)) return null;
+  let score=gradeScoreFromRatio(g.aw/g.ewp);
+  if(g.enf>0){ const over=Math.max(0,g.an-g.enf); score-=Math.min(15,over/g.enf*30); }
+  if(g.esp>0){ const sh=Math.max(0,g.esp-g.as); score-=Math.min(12,sh/g.esp*15); }
+  return Math.max(0,Math.min(100,score));
+}
+/* ---- family timeframe ---- */
+let FAMPER={key:"month"};
+const FAMPERIODS=[{key:"month",label:"This month"},{key:"lastmonth",label:"Last month"},{key:"ytd",label:"Year to date"},{key:"yearview",label:"Year"},{key:"monthly",label:"Month"}];
+function famMonthKeys(){
+  const now=new Date(), y=now.getFullYear(), m=now.getMonth(), P=FAMPER;
+  if(P.key==="lastmonth"){ const d=new Date(y,m-1,1); return [mkKey(d.getFullYear(),d.getMonth())]; }
+  if(P.key==="ytd"){ const ks=[]; for(let i=0;i<=m;i++) ks.push(mkKey(y,i)); return ks; }
+  if(P.key==="yearview"){ const yy=P.y!=null?P.y:y; const ks=[]; for(let i=0;i<12;i++) ks.push(mkKey(yy,i)); return ks; }
+  if(P.key==="monthly"){ const yy=P.y!=null?P.y:y, mm=P.m!=null?P.m:m; return [mkKey(yy,mm)]; }
+  return [mkKey(y,m)];
+}
+function famPeriodLabel(){ const now=new Date();
+  if(FAMPER.key==="yearview") return "Jan – Dec "+(FAMPER.y!=null?FAMPER.y:now.getFullYear());
+  if(FAMPER.key==="monthly"){ const yy=FAMPER.y!=null?FAMPER.y:now.getFullYear(), mm=FAMPER.m!=null?FAMPER.m:now.getMonth(); return new Date(yy,mm,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
+  const f=FAMPERIODS.find(x=>x.key===FAMPER.key); return f?f.label:"This month";
+}
+function renderFamPeriods(){
+  const el=document.getElementById("famPeriodSel"); if(!el) return;
+  el.innerHTML=FAMPERIODS.map(pp=>`<button class="${FAMPER.key===pp.key?"on":""}" onclick="setFamPeriod('${pp.key}')">${pp.label}</button>`).join("");
+  const yp=document.getElementById("famYearPick"), mp=document.getElementById("famMonthPick");
+  if(yp) yp.style.display=FAMPER.key==="yearview"?"block":"none";
+  if(mp) mp.style.display=FAMPER.key==="monthly"?"block":"none";
+}
+function famYears(){ const now=new Date(); const ys=[]; for(let yy=now.getFullYear();yy>=now.getFullYear()-5;yy--) ys.push(yy); return ys; }
+function setFamPeriod(key){
+  FAMPER={key};
+  const now=new Date();
+  if(key==="yearview"){ FAMPER.y=now.getFullYear(); const sel=document.getElementById("famYvSel"); sel.innerHTML=famYears().map(y=>`<option>${y}</option>`).join(""); sel.value=now.getFullYear(); }
+  if(key==="monthly"){ FAMPER.y=now.getFullYear(); FAMPER.m=now.getMonth();
+    const mo=document.getElementById("famMoMonth"), yr=document.getElementById("famMoYear");
+    const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    mo.innerHTML=months.map((nm,i)=>`<option value="${i}">${nm}</option>`).join(""); mo.value=now.getMonth();
+    yr.innerHTML=famYears().map(y=>`<option>${y}</option>`).join(""); yr.value=now.getFullYear();
+  }
+  renderFamPeriods(); renderFamily();
+}
+function applyFamYear(){ FAMPER.y=+document.getElementById("famYvSel").value; renderFamily(); }
+function applyFamMonthly(){ FAMPER.y=+document.getElementById("famMoYear").value; FAMPER.m=+document.getElementById("famMoMonth").value; renderFamily(); }
+/* ---- family render ---- */
+let FAM_MODE="cats", FAM_OPEN=new Set();
+function famToggle(m){ FAM_MODE=m; document.querySelectorAll("#famToggle button").forEach(b=>b.classList.toggle("on",b.dataset.fam===m)); renderFamily(); }
+function toggleFamRow(key){ if(FAM_OPEN.has(key)) FAM_OPEN.delete(key); else FAM_OPEN.add(key); renderFamily(); }
+function renderFamily(){
+  familyInit();
+  const nameI=document.getElementById("famName"); if(nameI && document.activeElement!==nameI) nameI.value=DB.family.myName||"";
+  if(!document.getElementById("famPeriodSel").innerHTML) renderFamPeriods();
+  const list=famContributors();
+  const A=famAggregate(list, famMonthKeys());
+  const contribEl=document.getElementById("famContrib");
+  if(contribEl) contribEl.innerHTML = list.map((s,i)=> i===0
+    ? `<span class="tiny">You <span class="muted">· live</span></span>`
+    : `<span class="tiny" style="margin-right:10px">${s.name} <span class="muted">· ${fmtDateY(s.date)}</span> <a onclick="famRemovePartner('${(s.name||"").replace(/'/g,"\\'")}')" style="color:var(--red);cursor:pointer">✕</a></span>`
+  ).join(" ");
+  document.getElementById("famIncome").textContent=gbp(A.income);
+  document.getElementById("famSpend").textContent=gbp(A.spend);
+  const netEl=document.getElementById("famNet"); netEl.textContent=gbp(A.net); netEl.className="val "+(A.net>=0?"pos":"neg");
+  document.getElementById("famSave").textContent=gbp(A.saved);
+  const gc=document.getElementById("famGrade"), score=familyGradeScore(A.g);
+  if(gc){ if(score==null){ gc.style.display="none"; } else {
+    gc.style.display="block";
+    const band=GRADECOL[gradeBand(score)];
+    const box=document.getElementById("famGradeLetter"); box.textContent=gradeLetter(score); box.style.background=band[0]; box.style.color=band[1];
+    document.getElementById("famGradeVerdict").textContent="Family · "+gradeVerdict(score);
+    document.getElementById("famGradeDetail").textContent=`${famPeriodLabel()} · combined discretionary ${gbp(A.g.aw)} of ${gbp(A.g.ewf)} budget`;
+  }}
+  const rows = FAM_MODE==="cats"
+    ? A.catsArr.map(c=>({key:"c:"+c.name.toLowerCase(),label:c.name,total:c.total,parts:c.parts}))
+    : A.groupsArr.map(g=>({key:"g:"+g.group,label:g.group,total:g.total,parts:g.parts}));
+  const listEl=document.getElementById("famList"), totalSpend=A.spend||0;
+  listEl.innerHTML = rows.length ? rows.map(r=>{
+    const open=FAM_OPEN.has(r.key), pctOfSpend=totalSpend>0?Math.round(r.total/totalSpend*100):0;
+    let h=`<div class="famrow"><div onclick="toggleFamRow('${r.key.replace(/'/g,"\\'")}')" style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;cursor:pointer">
+        <span style="font-weight:700">${r.label}</span>
+        <span><b>${gbp(r.total)}</b> <span class="tiny muted">${pctOfSpend}%</span></span>
+      </div>`;
+    if(open){ h+=r.parts.map(pp=>{ const pc=r.total>0?Math.round(pp.amt/r.total*100):0; return `<div class="tiny" style="display:flex;justify-content:space-between;margin-top:6px"><span class="muted">${pp.name}</span><span>${gbp(pp.amt)} · ${pc}%</span></div>`; }).join(""); }
+    return h+`</div>`;
+  }).join("") : '<div class="empty">No spending in this period yet.</div>';
+}
+function saveFamName(){ familyInit(); DB.family.myName=document.getElementById("famName").value.trim(); save(); renderFamily(); }
+function openFamShare(){ document.getElementById("famShareText").value=encodeSummary(famSelfSummary()); document.getElementById("famShareModal").classList.add("on"); famRenderQR(); }
+function closeFamShare(){ document.getElementById("famShareModal").classList.remove("on"); }
+function famCopy(){ const t=document.getElementById("famShareText"); t.select(); try{ document.execCommand("copy"); toast("Copied ✓"); }catch(e){ toast("Select the code and copy it"); } }
+function famShareSend(){ const code=document.getElementById("famShareText").value; if(navigator.share){ navigator.share({title:"My money figures",text:code}).catch(()=>{}); } else { famCopy(); } }
+function openFamPaste(){ document.getElementById("famPasteText").value=""; document.getElementById("famPasteModal").classList.add("on"); }
+function closeFamPaste(){ document.getElementById("famPasteModal").classList.remove("on"); }
+function famAddPartner(sum){
+  if(!sum || !sum.months){ toast("That code didn't work"); return false; }
+  familyInit();
+  if((sum.name||"").toLowerCase()===familyMyName().toLowerCase()){ toast("That's your own code"); return false; }
+  const i=DB.family.partners.findIndex(pp=>(pp.name||"").toLowerCase()===(sum.name||"").toLowerCase());
+  if(i>=0) DB.family.partners[i]=sum; else DB.family.partners.push(sum);
+  save(); renderFamily(); toast((sum.name||"Partner")+"'s figures added ✓"); return true;
+}
+function famImport(){ if(famAddPartner(decodeSummary(document.getElementById("famPasteText").value))) closeFamPaste(); }
+function famRenderQR(){
+  const box=document.getElementById("famQR"); if(!box) return;
+  if(typeof qrcode==="undefined"){ box.innerHTML='<div class="tiny muted" style="text-align:center">QR needs an internet connection — use Copy/Paste instead.</div>'; return; }
+  let sum=famSelfSummary(), code=encodeSummary(sum), img=null, note="", guard=0;
+  while(guard++<40){
+    try{ const qr=qrcode(0,"L"); qr.addData(code); qr.make(); img=qr.createDataURL(5,10); break; }
+    catch(e){ const keys=Object.keys(sum.months||{}).sort(); if(keys.length<=1){ img=null; break; } delete sum.months[keys[0]]; code=encodeSummary(sum); note="Covers your most recent months — use Copy/Paste for full history."; }
+  }
+  box.innerHTML = img
+    ? `<img src="${img}" alt="QR code" style="width:100%;max-width:250px;display:block;margin:6px auto;background:#fff;border-radius:8px;padding:8px">${note?`<div class="tiny muted" style="text-align:center">${note}</div>`:""}`
+    : '<div class="tiny muted" style="text-align:center">Too much history for a QR — use Copy/Paste instead.</div>';
+}
+let famScanStream=null, famScanRAF=null;
+function openFamScan(){
+  const m=document.getElementById("famScanModal"); if(!m) return; m.classList.add("on");
+  const msg=document.getElementById("famScanMsg"), video=document.getElementById("famVideo");
+  if(typeof jsQR==="undefined"){ msg.textContent="Scanning needs an internet connection — use paste instead."; return; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ msg.textContent="This device can't open the camera here — use paste instead."; return; }
+  msg.textContent="Point at your partner's QR code…";
+  navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(function(stream){
+    famScanStream=stream; video.srcObject=stream; video.setAttribute("playsinline",""); video.muted=true;
+    const pl=video.play(); if(pl&&pl.catch) pl.catch(function(){});
+    const canvas=document.getElementById("famCanvas"), ctx=canvas.getContext("2d");
+    const tick=function(){
+      if(!famScanStream) return;
+      if(video.readyState>=2 && video.videoWidth){
+        canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+        ctx.drawImage(video,0,0,canvas.width,canvas.height);
+        try{ const im=ctx.getImageData(0,0,canvas.width,canvas.height); const res=jsQR(im.data,im.width,im.height);
+          if(res && res.data){ const sum=decodeSummary(res.data); if(sum && sum.months){ closeFamScan(); famAddPartner(sum); return; } else { msg.textContent="That QR isn't a family code — keep pointing…"; } }
+        }catch(e){}
+      }
+      famScanRAF=requestAnimationFrame(tick);
+    };
+    famScanRAF=requestAnimationFrame(tick);
+  }).catch(function(e){ msg.textContent="Couldn't open the camera (check permission) — use paste instead."; });
+}
+function closeFamScan(){ if(famScanRAF){ cancelAnimationFrame(famScanRAF); famScanRAF=null; } if(famScanStream){ famScanStream.getTracks().forEach(function(t){ t.stop(); }); famScanStream=null; } const m=document.getElementById("famScanModal"); if(m) m.classList.remove("on"); }
+function famRemovePartner(name){ familyInit(); DB.family.partners=DB.family.partners.filter(pp=>pp.name!==name); save(); renderFamily(); }
 
 /* ============================================================= AUTH & USERS */
 function restoreSession(){
