@@ -479,22 +479,13 @@ canvas{max-width:100%;}
         <div id="savGoal" style="margin-top:12px"></div>
       </div>
       <div class="card">
-        <h2 style="margin-top:2px">Move savings to spending</h2>
-        <p class="note">Move money out of savings into this month's spendable income. It lowers your savings, adds to your income, and lifts your flexible spending budget for the month.</p>
-        <div class="row" style="margin-top:6px">
-          <div><label>Amount (£)</label><input type="number" id="savMoveAmt" inputmode="decimal" placeholder="£"></div>
-          <div><label>Date</label><input type="date" id="savMoveDate"></div>
-        </div>
-        <button class="btn sec" style="margin-top:8px" onclick="moveSavToSpend()">Move to spending</button>
-      </div>
-      <div class="card">
         <h2 style="margin-top:2px">Savings goals</h2>
         <p class="note">Track named goals like an emergency fund or house deposit. Update the current amount whenever it changes.</p>
         <div id="savGoalsList" style="margin-top:6px"></div>
         <button class="btn sec" style="margin-top:10px" onclick="openGoalModal('savings')">Add a savings goal</button>
       </div>
       <div class="acc" id="accSavSetup">
-        <div class="acc-head" onclick="toggleAcc('accSavSetup')"><span>Update balance &amp; target</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+        <div class="acc-head" onclick="toggleAcc('accSavSetup')"><span>Balance, target &amp; transfers</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
         <div class="acc-body">
           <div class="card">
             <h2 style="margin-top:2px">Current balance</h2>
@@ -510,6 +501,15 @@ canvas{max-width:100%;}
             <h2 style="margin-top:2px">Savings target</h2>
             <p class="note">The amount you want your savings to reach. We use your monthly <b>Savings</b> category target to estimate how long it'll take.</p>
             <div class="field" style="margin-top:6px"><label>Target (£)</label><input type="number" id="savTarget" inputmode="decimal" placeholder="£" onchange="saveSavTarget()"></div>
+          </div>
+          <div class="card">
+            <h2 style="margin-top:2px">Move savings to spending</h2>
+            <p class="note">Move money out of savings into this month's spendable income. It lowers your savings, adds it to your income, and lifts your flexible spending budget for the month.</p>
+            <div class="row" style="margin-top:6px">
+              <div><label>Amount (£)</label><input type="number" id="savMoveAmt" inputmode="decimal" placeholder="£"></div>
+              <div><label>Date</label><input type="date" id="savMoveDate"></div>
+            </div>
+            <button class="btn sec" style="margin-top:8px" onclick="moveSavToSpend()">Move to spending</button>
           </div>
         </div>
       </div>
@@ -589,6 +589,11 @@ canvas{max-width:100%;}
       <div class="acc" id="accXpBreak">
         <div class="acc-head" onclick="toggleAcc('accXpBreak')"><span>Where your XP came from</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
         <div class="acc-body"><div id="xpBreak"></div></div>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:2px">Last 12 months</h2>
+        <p class="note">Your monthly grade for each of the past 12 months.</p>
+        <div id="gradeGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px"></div>
       </div>
       <div class="card">
         <h2 style="margin-top:2px">Streaks</h2>
@@ -1197,7 +1202,7 @@ function gradeStats(){
   });
   if(expWantsPaced<=0) return {show:false, reason:"Add a £ target to a Wants category (or flag a Need as variable) to get a grade."};
   // extra income logged this period lifts the flexible budget — it's money you can now spend
-  let _addInc=0; keys.forEach(mk=>{ const pp=mk.split("-"); _addInc+=additionalIncomeForMonth(+pp[0],(+pp[1])-1); });
+  let _addInc=0; keys.forEach(mk=>{ const f=monthFraction(mk); if(f>0 && f<1){ const pp=mk.split("-"); _addInc+=additionalIncomeForMonth(+pp[0],(+pp[1])-1); } });
   expWantsPaced+=_addInc; expWantsFull+=_addInc;
   const tx=txInPeriod(), byCat={};
   tx.forEach(t=>{ if(!(t.category in byCat)) byCat[t.category]=0; byCat[t.category]+=t.amount; });
@@ -2094,7 +2099,7 @@ function savBalances(){ savInit(); return DB.savings.balances.slice().sort((a,b)
 function savCat(){ return allCats().find(c=>c.name && c.name.toLowerCase()==="savings"); }
 function savMonthlyTarget(){ const c=savCat(); return c?(+c.amount||0):0; }
 // net Savings-category payments after a balance date (outflows add, refunds subtract)
-function savContribSince(dateStr){ const cut=dateStr?parse(dateStr):null; let t=0; (DB.txns||[]).forEach(x=>{ if(!x.category||x.category.toLowerCase()!=="savings") return; if(cut && parse(x.date)<=cut) return; t+=-x.amount; }); return t; }
+function savContribSince(dateStr){ const cut=dateStr?parse(dateStr):null; let t=0; (DB.txns||[]).forEach(x=>{ if(cut && parse(x.date)<=cut) return; if(x.category && x.category.toLowerCase()==="savings") t+=-x.amount; if(x.fromSavings) t-=(+x.amount||0); }); return t; }
 function savingsTotal(){ savInit(); const b=savBalances(); if(b.length){ const last=b[b.length-1]; return (+last.amount||0)+savContribSince(last.date); } return savContribSince(null); }
 function addSavBal(){
   savInit();
@@ -2317,13 +2322,29 @@ function gradeScoreForMonth(y,m){
   let expFlex=0, expNeedsFull=0, expSavFull=0;
   activeCats().forEach(c=>{ const t=monthTargetFor(c,mk); if(t<=0) return; if(c.group==="Savings") expSavFull+=t; else if(isFlex(c)) expFlex+=t; else expNeedsFull+=t; });
   if(expFlex<=0) return null;
-  expFlex+=additionalIncomeForMonth(y,m);   // extra income lifts the flexible budget
   let actFlex=0,actNeeds=0,actSav=0;
   activeCats().forEach(c=>{ const v=Math.max(0,catNetInMonth(c.name,y,m)); if(c.group==="Savings") actSav+=v; else if(isFlex(c)) actFlex+=v; else actNeeds+=v; });
   let score=gradeScoreFromRatio(actFlex/expFlex);
   if(expNeedsFull>0){ const over=Math.max(0,actNeeds-expNeedsFull); score-=Math.min(15,over/expNeedsFull*30); }
   if(expSavFull>0){ const sh=Math.max(0,expSavFull-actSav); score-=Math.min(12,sh/expSavFull*15); }
   return Math.max(0,Math.min(100,score));
+}
+function renderGradeGrid(){
+  const el=document.getElementById("gradeGrid"); if(!el) return;
+  const now=new Date(), curKey=now.getFullYear()*12+now.getMonth();
+  let html="";
+  for(let k=curKey-12;k<=curKey-1;k++){
+    const y=Math.floor(k/12), m=((k%12)+12)%12;
+    const lab=new Date(y,m,1).toLocaleDateString("en-GB",{month:"short"});
+    const sc=gradeScoreForMonth(y,m);
+    if(sc==null){
+      html+=`<div style="text-align:center;padding:9px 2px;border:1px solid var(--line);border-radius:10px"><div class="tiny muted">${lab}</div><div style="font-weight:800;font-size:18px;color:var(--muted)">–</div></div>`;
+    } else {
+      const band=GRADECOL[gradeBand(sc)];
+      html+=`<div style="text-align:center;padding:9px 2px;border-radius:10px;background:${band[0]}"><div class="tiny muted">${lab}</div><div style="font-weight:800;font-size:18px;color:${band[1]}">${gradeLetter(sc)}</div></div>`;
+    }
+  }
+  el.innerHTML=html;
 }
 function noSpendWeekends(){
   let firstDate=null; (DB.txns||[]).forEach(t=>{ if(firstDate===null||t.date<firstDate) firstDate=t.date; });
@@ -2413,14 +2434,14 @@ function goalsSub(which){
   GSUB=which;
   ["savings","invest","objectives","streaks"].forEach(k=>{ const el=document.getElementById("gsub-"+k); if(el) el.style.display=(k===which)?"":"none"; });
   document.querySelectorAll("#goalsSeg button").forEach(b=>b.classList.toggle("on", b.dataset.gsub===which));
-  if(which==="streaks"){ renderXP(); renderStreaks(); }
+  if(which==="streaks"){ renderXP(); renderStreaks(); renderGradeGrid(); }
   window.scrollTo(0,0);
 }
 function renderInvest(){
   renderSavings();
   renderGoalsInto("savings","savGoalsList"); renderGoalsInto("invest","invGoalsList");
   renderGoals();
-  renderXP(); renderStreaks();
+  renderXP(); renderStreaks(); renderGradeGrid();
   invInit();
   populateDob();
   const gr=document.getElementById("invGrowth"); if(gr) gr.value=(DB.invest.annualGrowth==null?"":DB.invest.annualGrowth);
@@ -2454,9 +2475,7 @@ function moveSavToSpend(){
   const amt=parseFloat(document.getElementById("savMoveAmt").value);
   const date=document.getElementById("savMoveDate").value||todayISO();
   if(!(amt>0)){ toast("Enter an amount"); return; }
-  const base="t"+Date.now()+Math.random().toString(36).slice(2,5);
-  DB.txns.push({id:base+"o", date, desc:"Moved to current account", amount:amt, category:"Savings", byId:CURRENT?CURRENT.id:null, byName:curName(), xfer:1});
-  DB.txns.push({id:base+"i", date, desc:"From savings", amount:amt, category:"Other Income", byId:CURRENT?CURRENT.id:null, byName:curName(), xfer:1});
+  DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,6), date, desc:"Moved from savings", amount:amt, category:"Other Income", byId:CURRENT?CURRENT.id:null, byName:curName(), fromSavings:1});
   save();
   const el=document.getElementById("savMoveAmt"); if(el) el.value="";
   toast("Moved "+gbp(amt)+" to spending ✓");
@@ -2491,7 +2510,8 @@ function famAggregate(contributors, keys){
       const f=monthFraction(mk);
       out.income+=(+md.i||0);
       out.g.aw+=(+md.aw||0); out.g.an+=(+md.an||0); out.g.as+=(+md.as||0);
-      out.g.ewp+=(+md.ewf||0)*f + (+md.ai||0); out.g.ewf+=(+md.ewf||0)*(f>0?1:0) + (+md.ai||0);
+      const _ail=(f>0 && f<1)?(+md.ai||0):0;
+      out.g.ewp+=(+md.ewf||0)*f + _ail; out.g.ewf+=(+md.ewf||0)*(f>0?1:0) + _ail;
       out.g.enf+=(+md.enf||0)*(f>0?1:0); out.g.esp+=(+md.esf||0)*f;
       (md.c||[]).forEach(row=>{ const name=row[0],group=row[1],net=+row[2]||0; if(net<=0) return;
         out.spend+=net; if(group==="Savings") out.saved+=net;
