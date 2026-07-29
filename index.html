@@ -479,6 +479,15 @@ canvas{max-width:100%;}
         <div id="savGoal" style="margin-top:12px"></div>
       </div>
       <div class="card">
+        <h2 style="margin-top:2px">Move savings to spending</h2>
+        <p class="note">Move money out of savings into this month's spendable income. It lowers your savings, adds to your income, and lifts your flexible spending budget for the month.</p>
+        <div class="row" style="margin-top:6px">
+          <div><label>Amount (£)</label><input type="number" id="savMoveAmt" inputmode="decimal" placeholder="£"></div>
+          <div><label>Date</label><input type="date" id="savMoveDate"></div>
+        </div>
+        <button class="btn sec" style="margin-top:8px" onclick="moveSavToSpend()">Move to spending</button>
+      </div>
+      <div class="card">
         <h2 style="margin-top:2px">Savings goals</h2>
         <p class="note">Track named goals like an emergency fund or house deposit. Update the current amount whenever it changes.</p>
         <div id="savGoalsList" style="margin-top:6px"></div>
@@ -1171,6 +1180,7 @@ function monthFraction(mk){
   if(key>nowKey) return 0;      // not started yet
   return Math.min(1, now.getDate()/daysInMonthOf(y,mi));   // current month, so far
 }
+function additionalIncomeForMonth(y,m){ let sum=0; (DB.txns||[]).forEach(t=>{ if(t.amount>0 && INCOME_CATS.includes(t.category)){ const dt=parse(t.date); if(dt.getFullYear()===y && dt.getMonth()===m) sum+=t.amount; } }); return sum; }
 function gradeStats(){
   if(!DB.txns || PERIOD.key==="trends") return {show:false};
   const keys=monthKeysInRange();
@@ -1186,6 +1196,9 @@ function gradeStats(){
     });
   });
   if(expWantsPaced<=0) return {show:false, reason:"Add a £ target to a Wants category (or flag a Need as variable) to get a grade."};
+  // extra income logged this period lifts the flexible budget — it's money you can now spend
+  let _addInc=0; keys.forEach(mk=>{ const pp=mk.split("-"); _addInc+=additionalIncomeForMonth(+pp[0],(+pp[1])-1); });
+  expWantsPaced+=_addInc; expWantsFull+=_addInc;
   const tx=txInPeriod(), byCat={};
   tx.forEach(t=>{ if(!(t.category in byCat)) byCat[t.category]=0; byCat[t.category]+=t.amount; });
   let actWants=0, actNeeds=0, actSav=0;
@@ -2304,6 +2317,7 @@ function gradeScoreForMonth(y,m){
   let expFlex=0, expNeedsFull=0, expSavFull=0;
   activeCats().forEach(c=>{ const t=monthTargetFor(c,mk); if(t<=0) return; if(c.group==="Savings") expSavFull+=t; else if(isFlex(c)) expFlex+=t; else expNeedsFull+=t; });
   if(expFlex<=0) return null;
+  expFlex+=additionalIncomeForMonth(y,m);   // extra income lifts the flexible budget
   let actFlex=0,actNeeds=0,actSav=0;
   activeCats().forEach(c=>{ const v=Math.max(0,catNetInMonth(c.name,y,m)); if(c.group==="Savings") actSav+=v; else if(isFlex(c)) actFlex+=v; else actNeeds+=v; });
   let score=gradeScoreFromRatio(actFlex/expFlex);
@@ -2436,6 +2450,18 @@ function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.
 function familyInit(){ if(!DB.family||typeof DB.family!=="object") DB.family={myName:"",partners:[]}; if(!Array.isArray(DB.family.partners)) DB.family.partners=[]; }
 function familyMyName(){ familyInit(); return (DB.family.myName&&DB.family.myName.trim()) || (CURRENT&&CURRENT.name) || "Me"; }
 function fam_r2(x){ return Math.round((+x||0)*100)/100; }
+function moveSavToSpend(){
+  const amt=parseFloat(document.getElementById("savMoveAmt").value);
+  const date=document.getElementById("savMoveDate").value||todayISO();
+  if(!(amt>0)){ toast("Enter an amount"); return; }
+  const base="t"+Date.now()+Math.random().toString(36).slice(2,5);
+  DB.txns.push({id:base+"o", date, desc:"Moved to current account", amount:amt, category:"Savings", byId:CURRENT?CURRENT.id:null, byName:curName(), xfer:1});
+  DB.txns.push({id:base+"i", date, desc:"From savings", amount:amt, category:"Other Income", byId:CURRENT?CURRENT.id:null, byName:curName(), xfer:1});
+  save();
+  const el=document.getElementById("savMoveAmt"); if(el) el.value="";
+  toast("Moved "+gbp(amt)+" to spending ✓");
+  renderInvest(); refreshAll();
+}
 function famSelfMonths(){
   const now=new Date(), curKey=now.getFullYear()*12+now.getMonth();
   let firstK=curKey; (DB.txns||[]).forEach(t=>{ const dt=parse(t.date); const k=dt.getFullYear()*12+dt.getMonth(); if(k<firstK) firstK=k; });
@@ -2447,7 +2473,7 @@ function famSelfMonths(){
     let ewf=0,enf=0,esf=0, aw=0,an=0,asv=0; const c=[];
     activeCats().forEach(cat=>{ const t=monthTargetFor(cat,mk); if(t>0){ if(cat.group==="Savings") esf+=t; else if(isFlex(cat)) ewf+=t; else enf+=t; } });
     activeCats().forEach(cat=>{ const v=Math.max(0,catNetInMonth(cat.name,y,m)); if(v>0) c.push([cat.name,cat.group,fam_r2(v)]); if(cat.group==="Savings") asv+=v; else if(isFlex(cat)) aw+=v; else an+=v; });
-    if(income>0 || c.length) months[mk]={i:fam_r2(income),c,ewf:fam_r2(ewf),enf:fam_r2(enf),esf:fam_r2(esf),aw:fam_r2(aw),an:fam_r2(an),as:fam_r2(asv)};
+    if(income>0 || c.length) months[mk]={i:fam_r2(income),c,ewf:fam_r2(ewf),enf:fam_r2(enf),esf:fam_r2(esf),ai:fam_r2(logged),aw:fam_r2(aw),an:fam_r2(an),as:fam_r2(asv)};
   }
   return months;
 }
@@ -2465,7 +2491,7 @@ function famAggregate(contributors, keys){
       const f=monthFraction(mk);
       out.income+=(+md.i||0);
       out.g.aw+=(+md.aw||0); out.g.an+=(+md.an||0); out.g.as+=(+md.as||0);
-      out.g.ewp+=(+md.ewf||0)*f; out.g.ewf+=(+md.ewf||0)*(f>0?1:0);
+      out.g.ewp+=(+md.ewf||0)*f + (+md.ai||0); out.g.ewf+=(+md.ewf||0)*(f>0?1:0) + (+md.ai||0);
       out.g.enf+=(+md.enf||0)*(f>0?1:0); out.g.esp+=(+md.esf||0)*f;
       (md.c||[]).forEach(row=>{ const name=row[0],group=row[1],net=+row[2]||0; if(net<=0) return;
         out.spend+=net; if(group==="Savings") out.saved+=net;
