@@ -2329,16 +2329,32 @@ function gradeScoreForMonth(y,m){
   if(expSavFull>0){ const sh=Math.max(0,expSavFull-actSav); score-=Math.min(12,sh/expSavFull*15); }
   return Math.max(0,Math.min(100,score));
 }
+function gradeForMonthCell(y,m){
+  const mk=mkKey(y,m), f=monthFraction(mk);
+  if(f<=0) return null;
+  let ewp=0,ewf=0,enf=0,esp=0;
+  activeCats().forEach(c=>{ const t=monthTargetFor(c,mk); if(t<=0) return; if(c.group==="Savings") esp+=t*f; else if(isFlex(c)){ ewp+=t*f; ewf+=t; } else enf+=t; });
+  if(ewp<=0) return null;
+  if(f<1){ const ai=additionalIncomeForMonth(y,m); ewp+=ai; ewf+=ai; }   // current month only: extra income lifts budget
+  let aw=0,an=0,asv=0;
+  activeCats().forEach(c=>{ const v=Math.max(0,catNetInMonth(c.name,y,m)); if(c.group==="Savings") asv+=v; else if(isFlex(c)) aw+=v; else an+=v; });
+  let score=gradeScoreFromRatio(aw/ewp);
+  if(enf>0){ const over=Math.max(0,an-enf); score-=Math.min(15,over/enf*30); }
+  if(esp>0){ const sh=Math.max(0,esp-asv); score-=Math.min(12,sh/esp*15); }
+  return Math.max(0,Math.min(100,score));
+}
 function renderGradeGrid(){
   const el=document.getElementById("gradeGrid"); if(!el) return;
   const now=new Date(), curKey=now.getFullYear()*12+now.getMonth();
   let html="";
-  for(let k=curKey-12;k<=curKey-1;k++){
+  // oldest (12 months ago) top-left -> current month bottom-right (conveyor)
+  for(let k=curKey-11;k<=curKey;k++){
     const y=Math.floor(k/12), m=((k%12)+12)%12;
     const lab=new Date(y,m,1).toLocaleDateString("en-GB",{month:"short"});
-    const sc=gradeScoreForMonth(y,m);
+    const hasData=(DB.txns||[]).some(t=>{ const dt=parse(t.date); return dt.getFullYear()===y && dt.getMonth()===m; });
+    const sc=hasData?gradeForMonthCell(y,m):null;
     if(sc==null){
-      html+=`<div style="text-align:center;padding:9px 2px;border:1px solid var(--line);border-radius:10px"><div class="tiny muted">${lab}</div><div style="font-weight:800;font-size:18px;color:var(--muted)">–</div></div>`;
+      html+=`<div style="text-align:center;padding:9px 2px;border:1px dashed var(--line);border-radius:10px;opacity:.4"><div class="tiny muted">${lab}</div><div style="height:22px"></div></div>`;
     } else {
       const band=GRADECOL[gradeBand(sc)];
       html+=`<div style="text-align:center;padding:9px 2px;border-radius:10px;background:${band[0]}"><div class="tiny muted">${lab}</div><div style="font-weight:800;font-size:18px;color:${band[1]}">${gradeLetter(sc)}</div></div>`;
