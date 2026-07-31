@@ -701,6 +701,16 @@ canvas{max-width:100%;}
     </div>
     <div class="field"><label>Category (optional)</label><select id="stCat"></select></div>
     <div class="field"><label>Description keyword (optional)</label><input id="stKw" placeholder="e.g. coffee, amazon"></div>
+    <div id="stAllowWrap"><div class="field"><label>Allowance</label>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span class="tiny muted">Max</span>
+        <input type="number" id="stAllow" min="0" step="1" value="0" inputmode="numeric" style="width:58px">
+        <span class="tiny muted">time(s) per</span>
+        <input type="number" id="stWinN" min="1" step="1" value="1" inputmode="numeric" style="width:58px">
+        <select id="stWinUnit" style="width:auto"><option value="day">day(s)</option><option value="week" selected>week(s)</option><option value="month">month(s)</option></select>
+      </div>
+    </div>
+    <p class="note" id="stAllowNote">How often you can spend and still keep the streak going. E.g. "Max 1 time per 1 week" = a coffee once a week is fine. Leave Max at 0 for a full cold-turkey streak.</p></div>
     <p class="note">Set a category, a keyword, or both. A transaction counts toward the streak if it matches your choice.</p>
     <div class="row">
       <button class="btn sec" onclick="closeStreakModal()">Cancel</button>
@@ -2208,13 +2218,18 @@ function streakStats(st){
   (DB.txns||[]).forEach(t=>{ if(streakMatchesTxn(st,t)){ const dt=parse(t.date); if(dt<=now) matched[streakPeriodKey(dt,st.period)]=t.date; } });
   const unit=streakUnit(st);
   if(st.kind!=="do"){
-    // avoidance — count clean days
+    // avoidance — count on-track days. With an allowance you may slip up to
+    // `allow` times per rolling window and keep the streak; 0 = cold turkey.
+    const allow=Math.max(0,+st.allow||0);
+    const unitDays=st.winUnit==="week"?7:st.winUnit==="month"?30:1;
+    const winDays=allow>0?Math.max(1,(+st.winN||1)*unitDays):1;
+    const occ={}; (DB.txns||[]).forEach(t=>{ if(streakMatchesTxn(st,t)){ const dt=parse(t.date); if(dt<=now){ const k=ymd(dt); occ[k]=(occ[k]||0)+1; } } });
+    const overOn=d=>{ const k=ymd(d); if(!occ[k]) return false; let c=0; const w=new Date(d); for(let i=0;i<winDays;i++){ c+=occ[ymd(w)]||0; w.setDate(w.getDate()-1); } return c>allow; };  // only the day you actually slip over breaks the streak
     let cur=0,best=0,lastBroken=null,guard=0;
     for(let d=new Date(anchor); d<=today && guard++<2200; d.setDate(d.getDate()+1)){
-      const k=ymd(d);
-      if(matched[k]){ cur=0; lastBroken=k; } else { cur++; if(cur>best) best=cur; }
+      if(overOn(d)){ cur=0; lastBroken=ymd(d); } else { cur++; if(cur>best) best=cur; }
     }
-    return {current:cur,best,lastBroken,active:!matched[ymd(today)],unit};
+    return {current:cur,best,lastBroken,active:!overOn(today),unit,allow,winDays};
   }
   // consistency — count consecutive weeks/months with a match
   const keys=[]; const seen={}; let guard=0;
@@ -2234,6 +2249,7 @@ function streakCriteria(st){
   const bits=[ st.kind==="do" ? (st.period==="week"?"Weekly":"Monthly") : "Daily" ];
   if(st.category) bits.push(st.category);
   if(st.keyword) bits.push('"'+st.keyword+'"');
+  if(st.kind!=="do"){ const a=Math.max(0,+st.allow||0); if(a>0){ const n=Math.max(1,+st.winN||1), u=st.winUnit||"week"; bits.push("max "+a+" per "+(n===1?u:n+" "+u+"s")); } }
   return bits.join(" · ");
 }
 let STREAK_OPEN=new Set();
@@ -2245,7 +2261,7 @@ function streakBoxHTML(st){
       <div class="tiny" style="font-weight:700;display:flex;justify-content:space-between;gap:6px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🔥 ${st.name}</span><span style="color:${col}">●</span></div>
       <div style="margin-top:6px"><span style="font-size:26px;font-weight:800">${s.current}</span> <span class="tiny muted">${u}${s.current===1?"":"s"}</span></div>`;
   if(open){
-    const status = st.kind==="do" ? (s.active?"Active":"Broken") : (s.active?"Active":"Slipped today");
+    const status = st.kind==="do" ? (s.active?"Active":"Broken") : (s.active?"Active":((s.allow>0)?"Over allowance today":"Slipped today"));
     const lb=streakBrokenLabel(st,s.lastBroken);
     h+=`<div class="tiny muted" style="margin-top:8px">Best ever: <b>${s.best}</b> ${u}${s.best===1?"":"s"} · ${status}</div>
       <div class="tiny muted" style="margin-top:2px">${streakCriteria(st)}${s.lastBroken?" · last broken "+lb:""}</div>
@@ -2262,10 +2278,10 @@ function renderStreaks(){
   list.innerHTML = DB.streaks.length ? DB.streaks.map(streakBoxHTML).join("") : '<div class="tiny muted" style="grid-column:1 / -1;padding:2px 0">No streaks yet — add one below.</div>';
 }
 function populateStreakCat(sel){ const el=document.getElementById("stCat"); if(!el) return; el.innerHTML='<option value="">Any category</option>'+allCats().map(c=>`<option>${c.name}</option>`).join(""); if(sel!=null) el.value=sel; }
-function stKindChange(){ const k=document.getElementById("stKind").value; document.getElementById("stFreqWrap").style.display = k==="do"?"block":"none"; }
+function stKindChange(){ const k=document.getElementById("stKind").value; document.getElementById("stFreqWrap").style.display = k==="do"?"block":"none"; const aw=document.getElementById("stAllowWrap"); if(aw) aw.style.display = k==="do"?"none":"block"; }
 let SEDIT=null;
-function openStreakModal(){ streaksInit(); SEDIT=null; document.getElementById("streakModalTitle").textContent="New streak"; document.getElementById("stName").value=""; document.getElementById("stKind").value="avoid"; document.getElementById("stPeriod").value="month"; document.getElementById("stKw").value=""; populateStreakCat(""); stKindChange(); document.getElementById("streakModal").classList.add("on"); }
-function editStreak(id){ streaksInit(); const st=DB.streaks.find(x=>x.id===id); if(!st) return; SEDIT=id; document.getElementById("streakModalTitle").textContent="Edit streak"; document.getElementById("stName").value=st.name||""; document.getElementById("stKind").value=st.kind; document.getElementById("stPeriod").value=(st.period==="week"?"week":"month"); document.getElementById("stKw").value=st.keyword||""; populateStreakCat(st.category||""); stKindChange(); document.getElementById("streakModal").classList.add("on"); }
+function openStreakModal(){ streaksInit(); SEDIT=null; document.getElementById("streakModalTitle").textContent="New streak"; document.getElementById("stName").value=""; document.getElementById("stKind").value="avoid"; document.getElementById("stPeriod").value="month"; document.getElementById("stKw").value=""; document.getElementById("stAllow").value="0"; document.getElementById("stWinN").value="1"; document.getElementById("stWinUnit").value="week"; populateStreakCat(""); stKindChange(); document.getElementById("streakModal").classList.add("on"); }
+function editStreak(id){ streaksInit(); const st=DB.streaks.find(x=>x.id===id); if(!st) return; SEDIT=id; document.getElementById("streakModalTitle").textContent="Edit streak"; document.getElementById("stName").value=st.name||""; document.getElementById("stKind").value=st.kind; document.getElementById("stPeriod").value=(st.period==="week"?"week":"month"); document.getElementById("stKw").value=st.keyword||""; document.getElementById("stAllow").value=(Math.max(0,+st.allow||0)); document.getElementById("stWinN").value=(Math.max(1,+st.winN||1)); document.getElementById("stWinUnit").value=(st.winUnit||"week"); populateStreakCat(st.category||""); stKindChange(); document.getElementById("streakModal").classList.add("on"); }
 function closeStreakModal(){ document.getElementById("streakModal").classList.remove("on"); SEDIT=null; }
 function saveStreak(){
   streaksInit();
@@ -2274,10 +2290,13 @@ function saveStreak(){
   const category=document.getElementById("stCat").value;
   const keyword=document.getElementById("stKw").value.trim();
   const period = kind==="do" ? document.getElementById("stPeriod").value : "day";
+  const allow=Math.max(0,parseInt(document.getElementById("stAllow").value,10)||0);
+  const winN=Math.max(1,parseInt(document.getElementById("stWinN").value,10)||1);
+  const winUnit=document.getElementById("stWinUnit").value;
   if(!name){ toast("Enter a name"); return; }
   if(!category && !keyword){ toast("Pick a category or a keyword"); return; }
-  if(SEDIT){ const st=DB.streaks.find(x=>x.id===SEDIT); if(st){ st.name=name; st.kind=kind; st.category=category; st.keyword=keyword; st.period=period; } }
-  else DB.streaks.push({id:"st"+Date.now()+Math.random().toString(36).slice(2,5), name, kind, category, keyword, period, created:todayISO()});
+  if(SEDIT){ const st=DB.streaks.find(x=>x.id===SEDIT); if(st){ st.name=name; st.kind=kind; st.category=category; st.keyword=keyword; st.period=period; st.allow=allow; st.winN=winN; st.winUnit=winUnit; } }
+  else DB.streaks.push({id:"st"+Date.now()+Math.random().toString(36).slice(2,5), name, kind, category, keyword, period, allow, winN, winUnit, created:todayISO()});
   save(); closeStreakModal(); renderStreaks(); toast("Saved ✓");
 }
 function delStreak(id){ streaksInit(); DB.streaks=DB.streaks.filter(x=>x.id!==id); save(); renderStreaks(); }
