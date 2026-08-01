@@ -2451,38 +2451,64 @@ function impDetect(rows){
   const dsNames=["description","details","narrative","reference","transactions","memo"];
   for(let r=0;r<Math.min(rows.length,25);r++){
     const cells=rows[r].map(x=>(x||"").toLowerCase().trim());
-    let di=-1,ds=-1,ai=-1,oi=-1,ii=-1;
+    let di=-1,ds=-1,ai=-1,oi=-1,ii=-1,ty=-1;
     cells.forEach((c,i)=>{ if(di<0 && c==="date") di=i; });
     if(di<0) cells.forEach((c,i)=>{ if(di<0 && c.indexOf("date")>=0) di=i; });
     for(const nm of dsNames){ if(ds<0) cells.forEach((c,i)=>{ if(ds<0 && c.indexOf(nm)>=0) ds=i; }); }
+    cells.forEach((c,i)=>{ if(ty<0 && c.indexOf("type")>=0) ty=i; });
+    // separate out/in columns first (Paid out/Paid in, Money out/in, Debit/Credit, Withdrawn/Deposit)
     cells.forEach((c,i)=>{
-      if(ai<0 && (c==="value"||c==="amount"||c==="money"||c.indexOf("amount")>=0||c.indexOf("value")>=0)) ai=i;
-      if(oi<0 && (c.indexOf("paid out")>=0||c.indexOf("money out")>=0||c==="debit"||c.indexOf("withdrawn")>=0)) oi=i;
-      if(ii<0 && (c.indexOf("paid in")>=0||c.indexOf("money in")>=0||c==="credit"||c.indexOf("deposit")>=0)) ii=i;
+      if(oi<0 && (c.indexOf("paid out")>=0||c.indexOf("money out")>=0||c.indexOf("debit")>=0||c.indexOf("withdrawn")>=0||c.indexOf("withdrawal")>=0)) oi=i;
+      if(ii<0 && (c.indexOf("paid in")>=0||c.indexOf("money in")>=0||c.indexOf("credit")>=0||c.indexOf("deposit")>=0)) ii=i;
     });
+    // single signed amount column (never a column we already claimed as out/in)
+    cells.forEach((c,i)=>{
+      if(i===oi||i===ii) return;
+      if(ai<0 && (c==="value"||c==="amount"||c==="money"||c.indexOf("amount")>=0||c.indexOf("value")>=0)) ai=i;
+    });
+    const twoCol = oi>=0 && ii>=0;
     const hasAmt = ai>=0 || oi>=0 || ii>=0;
     if(di>=0 && hasAmt){
-      if(ds<0) cells.forEach((c,i)=>{ if(ds<0 && (c.indexOf("type")>=0||c.indexOf("location")>=0)) ds=i; });
-      return {row:r, di, ds, ai:(oi>=0||ii>=0)?-1:ai, oi, ii};
+      if(ds<0 && ty>=0) ds=ty;
+      if(ds<0) cells.forEach((c,i)=>{ if(ds<0 && c.indexOf("location")>=0) ds=i; });
+      return {row:r, di, ds, ai:twoCol?-1:ai, oi, ii, ty};
     }
   }
   return null;
 }
+function impIsIncome(typ,raw){
+  const s=((typ||"")+" "+(raw||"")).toLowerCase();
+  return /(credit|deposit|refund|interest|salary|wages|dividend|received|paid in|payment in|bacs cr|faster payment received|transfer in|cashback|reimburs|rebate)/.test(s);
+}
 function impBuildRows(text){
   const rows=impParseCSV(text); const det=impDetect(rows);
   if(!det) return {ok:false, header:(rows[0]||[])};
+  // if a single amount column has no negatives at all, it's an unsigned magnitude column —
+  // direction must come from the Type/Description instead (and defaults to SPENDING).
+  let unsigned=false;
+  if(det.ai>=0){
+    let anyNeg=false, anyPos=false;
+    for(let r=det.row+1;r<rows.length;r++){ const v=impNum((rows[r]||[])[det.ai]); if(isNaN(v)) continue; if(v<0) anyNeg=true; else if(v>0) anyPos=true; }
+    unsigned = anyPos && !anyNeg;
+  }
   const out=[];
   for(let r=det.row+1;r<rows.length;r++){
     const cells=rows[r]; if(!cells) continue;
     const date=impDate(cells[det.di]); if(!date) continue;
-    let amount;
-    if(det.ai>=0){ amount=impNum(cells[det.ai]); }
-    else { const o=impNum(cells[det.oi]), i=impNum(cells[det.ii]); if(!isNaN(i)&&i>0) amount=i; else if(!isNaN(o)&&o>0) amount=-o; else amount=NaN; }
-    if(isNaN(amount)||amount===0) continue;
     const raw=(det.ds>=0?cells[det.ds]:"")||"";
+    const typ=(det.ty>=0?cells[det.ty]:"")||"";
+    let amount;
+    if(det.ai>=0){
+      let v=impNum(cells[det.ai]); if(isNaN(v)||v===0) continue;
+      amount = unsigned ? (impIsIncome(typ,raw)?Math.abs(v):-Math.abs(v)) : v;
+    } else {
+      const o=impNum(cells[det.oi]), i=impNum(cells[det.ii]);
+      if(!isNaN(i)&&i>0) amount=Math.abs(i); else if(!isNaN(o)&&o>0) amount=-Math.abs(o); else amount=NaN;
+    }
+    if(isNaN(amount)||amount===0) continue;
     out.push({date, amount, raw:(""+raw).trim()});
   }
-  return {ok:true, rows:out, det};
+  return {ok:true, rows:out, det, unsigned};
 }
 function impHistoryMap(){
   const tally={};
@@ -2532,7 +2558,7 @@ function impPreview(text){
   if(!res.rows.length){ if(msg) msg.textContent="No transactions found in that file."; return; }
   const rec=impReconcile(res.rows); IMP=rec;
   const nAdd=rec.toAdd.length, nMatch=rec.matched.length;
-  document.getElementById("impSummary").innerHTML="Found <b>"+(nAdd+nMatch)+"</b> transaction"+((nAdd+nMatch)===1?"":"s")+" · <b>"+nMatch+"</b> already in your log · <b>"+nAdd+"</b> new to add.";
+  document.getElementById("impSummary").innerHTML="Found <b>"+(nAdd+nMatch)+"</b> transaction"+((nAdd+nMatch)===1?"":"s")+" · <b>"+nMatch+"</b> already in your log · <b>"+nAdd+"</b> new to add."+(nAdd?' <button class="btn sec" style="margin-top:8px;width:auto;padding:5px 12px;font-size:13px" onclick="impAllSpending()">Set all to spending</button>':"");
   document.getElementById("impList").innerHTML = nAdd ? rec.toAdd.map((r,i)=>`
     <div class="card" style="padding:10px;margin-bottom:8px">
       <label style="display:flex;align-items:center;gap:8px;margin:0">
@@ -2542,21 +2568,35 @@ function impPreview(text){
           <span class="tiny muted"> · ${fmtDateY(r.date)}</span>
           ${r.maybe?'<span class="tiny" style="color:var(--amber);font-weight:700"> · possible duplicate</span>':''}
         </span>
-        <span style="font-weight:800;color:${r.income?'var(--green)':'var(--txt)'}">${gbp(r.amount)}</span>
+        <span id="impAmt${i}" style="font-weight:800;color:${r.income?'var(--green)':'var(--txt)'}">${gbp(r.amount)}</span>
       </label>
-      <div style="margin-top:8px"><select id="impCat${i}">${impCatOptions(r.cat||(r.income?"Other Income":""))}</select></div>
+      <div class="row" style="margin-top:8px;gap:8px">
+        <select id="impDir${i}" onchange="impDirChange(${i})"><option value="out"${!r.income?" selected":""}>Spending</option><option value="in"${r.income?" selected":""}>Income</option></select>
+        <select id="impCat${i}">${impCatOptions(r.cat||(r.income?"Other Income":""))}</select>
+      </div>
     </div>`).join("") : '<p class="sub">Nothing new to add — everything in this statement is already in your log.</p>';
   document.getElementById("impMatchedWrap").innerHTML = nMatch ? `<details><summary class="tiny muted" style="cursor:pointer;padding:4px 0">Already in your log (${nMatch}) — tap to view</summary><div style="margin-top:6px">${rec.matched.map(m=>`<div class="tiny muted" style="display:flex;justify-content:space-between;gap:8px;padding:3px 0"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${impNice(m.raw)||m.raw} · ${fmtDateY(m.date)}</span><span>${gbp(m.amount)}</span></div>`).join("")}</div></details>` : "";
   document.getElementById("impModal").classList.add("on");
 }
+function impDirChange(i){
+  if(!IMP||!IMP.toAdd||!IMP.toAdd[i]) return;
+  const r=IMP.toAdd[i]; const de=document.getElementById("impDir"+i); const inc=de?de.value==="in":r.income;
+  const amt=inc?Math.abs(r.amount):-Math.abs(r.amount);
+  const as=document.getElementById("impAmt"+i); if(as){ as.textContent=gbp(amt); as.style.color=inc?"var(--green)":"var(--txt)"; }
+  const cs=document.getElementById("impCat"+i); if(cs){ if(inc) cs.value="Other Income"; else if(r.cat) cs.value=r.cat; }
+}
+function impAllSpending(){ if(!IMP||!IMP.toAdd) return; IMP.toAdd.forEach((r,i)=>{ const d=document.getElementById("impDir"+i); if(d){ d.value="out"; impDirChange(i); } }); }
 function impConfirm(){
   if(!IMP||!IMP.toAdd){ impCancel(); return; }
   let n=0;
   IMP.toAdd.forEach((r,i)=>{
     const chk=document.getElementById("impChk"+i); if(!chk||!chk.checked) return;
-    const sel=document.getElementById("impCat"+i); const cat=(sel?sel.value:"")||(r.income?"Other Income":"");
-    DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,7)+i, date:r.date, desc:r.nice||r.raw||cat, amount:r.amount, category:cat, byId:(typeof CURRENT!=="undefined"&&CURRENT)?CURRENT.id:null, byName:(typeof curName==="function"?curName():""), src:"import", imp:r.fp});
-    if(cat && !r.income) impRememberRule(r.raw, cat);
+    const de=document.getElementById("impDir"+i); const inc=de?de.value==="in":r.income;
+    const amt=inc?Math.abs(r.amount):-Math.abs(r.amount);
+    const sel=document.getElementById("impCat"+i); const cat=(sel?sel.value:"")||(inc?"Other Income":"");
+    const fp=r.key+"|"+amt.toFixed(2)+"|"+r.date;
+    DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,7)+i, date:r.date, desc:r.nice||r.raw||cat, amount:amt, category:cat, byId:(typeof CURRENT!=="undefined"&&CURRENT)?CURRENT.id:null, byName:(typeof curName==="function"?curName():""), src:"import", imp:fp});
+    if(cat && !inc) impRememberRule(r.raw, cat);
     n++;
   });
   save(); impCancel(); toast(n?("Added "+n+" transaction"+(n===1?"":"s")+" ✓"):"Nothing selected"); refreshAll();
