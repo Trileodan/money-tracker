@@ -2431,7 +2431,17 @@ function impClean(s){
 }
 function impKey(s){ const c=impClean(s); return c.split(" ")[0]||c; }
 function impNice(s){ const c=impClean(s); if(!c) return (""+(s||"")).trim(); return c.split(" ").slice(0,4).map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" "); }
-function impNum(s){ if(s==null) return NaN; s=(""+s).trim().replace(/["']/g,""); let neg=false; if(/^\(.*\)$/.test(s)){ neg=true; s=s.slice(1,-1); } s=s.replace(/[£$,]/g,"").replace(/\s/g,""); if(s==="") return NaN; const n=parseFloat(s); return isNaN(n)?NaN:(neg?-n:n); }
+function impNum(s){
+  if(s==null) return NaN;
+  s=(""+s).replace(/["']/g,"").replace(/[£$€\s]/g,"").trim();
+  if(s==="") return NaN;
+  let neg=false; if(/^\(.*\)$/.test(s)){ neg=true; s=s.slice(1,-1); }
+  const m=s.match(/-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?|-?\.\d+/);   // one clean money token; won't glue several numbers together
+  if(!m) return NaN;
+  let n=parseFloat(m[0].replace(/,/g,""));
+  if(!isFinite(n)) return NaN;
+  return neg?-Math.abs(n):n;
+}
 const IMP_MON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 function impISO(y,mo,d){ return y+"-"+String(mo+1).padStart(2,"0")+"-"+String(d).padStart(2,"0"); }
 function impDate(s){
@@ -2442,13 +2452,28 @@ function impDate(s){
   if(m=s.match(/^(\d{1,2})[ \-]([A-Za-z]{3,})[ \-](\d{2,4})$/)){ const mo=IMP_MON[m[2].slice(0,3).toLowerCase()]; if(mo==null) return null; let y=+m[3]; if(y<100) y+=2000; return impISO(y,mo,+m[1]); }
   return null;
 }
-function impParseCSV(text){
+function impSniffDelim(text){
+  const lines=(""+text).replace(/\r/g,"").split("\n").filter(l=>l.trim().length).slice(0,12);
+  if(!lines.length) return ",";
+  let best=",", bestScore=-1;
+  [",",";","\t","|"].forEach(d=>{
+    const counts=lines.map(l=>l.split(d).length);
+    const mx=Math.max.apply(null,counts); if(mx<=1) return;
+    const sorted=counts.slice().sort((a,b)=>a-b), mode=sorted[Math.floor(sorted.length/2)];
+    const consistent=counts.filter(c=>c===mode).length;
+    const score=mode*10+consistent;                 // many columns + consistent count across lines
+    if(score>bestScore){ bestScore=score; best=d; }
+  });
+  return best;
+}
+function impParseCSV(text, delim){
+  delim=delim||",";
   const rows=[]; let row=[], cur="", q=false;
   text=(""+text).replace(/\r\n/g,"\n").replace(/\r/g,"\n");
   for(let i=0;i<text.length;i++){
     const ch=text[i];
     if(q){ if(ch==='"'){ if(text[i+1]==='"'){ cur+='"'; i++; } else q=false; } else cur+=ch; }
-    else { if(ch==='"') q=true; else if(ch===','){ row.push(cur); cur=""; } else if(ch==='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; } else cur+=ch; }
+    else { if(ch==='"') q=true; else if(ch===delim){ row.push(cur); cur=""; } else if(ch==='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; } else cur+=ch; }
   }
   if(cur.length||row.length){ row.push(cur); rows.push(row); }
   return rows.filter(r=>r.some(c=>(c||"").trim()!==""));
@@ -2487,8 +2512,10 @@ function impIsIncome(typ,raw){
   return /(credit|deposit|refund|interest|salary|wages|dividend|received|paid in|payment in|bacs cr|faster payment received|transfer in|cashback|reimburs|rebate)/.test(s);
 }
 function impBuildRows(text){
-  const rows=impParseCSV(text); const det=impDetect(rows);
+  const delim=impSniffDelim(text);
+  const rows=impParseCSV(text, delim); const det=impDetect(rows);
   if(!det) return {ok:false, header:(rows[0]||[])};
+  let skipped=0; const CAP=1e8;   // no sane personal transaction exceeds £100m — reject parse garbage
   // if a single amount column has no negatives at all, it's an unsigned magnitude column —
   // direction must come from the Type/Description instead (and defaults to SPENDING).
   let unsigned=false;
@@ -2511,10 +2538,11 @@ function impBuildRows(text){
       const o=impNum(cells[det.oi]), i=impNum(cells[det.ii]);
       if(!isNaN(i)&&i>0) amount=Math.abs(i); else if(!isNaN(o)&&o>0) amount=-Math.abs(o); else amount=NaN;
     }
-    if(isNaN(amount)||amount===0) continue;
+    if(isNaN(amount)||amount===0){ continue; }
+    if(!isFinite(amount)||Math.abs(amount)>CAP){ skipped++; continue; }
     out.push({date, amount, raw:(""+raw).trim()});
   }
-  return {ok:true, rows:out, det, unsigned};
+  return {ok:true, rows:out, det, unsigned, skipped, delim};
 }
 function impHistoryMap(){
   const tally={};
@@ -2564,7 +2592,7 @@ function impPreview(text){
   if(!res.rows.length){ if(msg) msg.textContent="No transactions found in that file."; return; }
   const rec=impReconcile(res.rows); IMP=rec;
   const nAdd=rec.toAdd.length, nMatch=rec.matched.length;
-  document.getElementById("impSummary").innerHTML="Found <b>"+(nAdd+nMatch)+"</b> transaction"+((nAdd+nMatch)===1?"":"s")+" · <b>"+nMatch+"</b> already in your log · <b>"+nAdd+"</b> new to add."+(nAdd?' <button class="btn sec" style="margin-top:8px;width:auto;padding:5px 12px;font-size:13px" onclick="impAllSpending()">Set all to spending</button>':"");
+  document.getElementById("impSummary").innerHTML="Found <b>"+(nAdd+nMatch)+"</b> transaction"+((nAdd+nMatch)===1?"":"s")+" · <b>"+nMatch+"</b> already in your log · <b>"+nAdd+"</b> new to add."+(res.skipped?" · <b>"+res.skipped+"</b> unreadable row"+(res.skipped===1?"":"s")+" skipped":"")+(nAdd?' <button class="btn sec" style="margin-top:8px;width:auto;padding:5px 12px;font-size:13px" onclick="impAllSpending()">Set all to spending</button>':"");
   document.getElementById("impList").innerHTML = nAdd ? rec.toAdd.map((r,i)=>`
     <div class="card" style="padding:10px;margin-bottom:8px">
       <label style="display:flex;align-items:center;gap:8px;margin:0">
