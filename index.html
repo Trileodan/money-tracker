@@ -2445,11 +2445,17 @@ function impNum(s){
 const IMP_MON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 function impISO(y,mo,d){ return y+"-"+String(mo+1).padStart(2,"0")+"-"+String(d).padStart(2,"0"); }
 function impDate(s){
-  if(!s) return null; s=(""+s).trim().replace(/^["']|["']$/g,"");
+  if(s==null) return null; s=(""+s).trim().replace(/["']/g,"");
+  if(!s) return null;
   let m;
-  if(m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/)){ let d=+m[1],mo=+m[2]-1,y=+m[3]; if(y<100) y+=2000; return impISO(y,mo,d); }
-  if(m=s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/)){ return impISO(+m[1],+m[2]-1,+m[3]); }
-  if(m=s.match(/^(\d{1,2})[ \-]([A-Za-z]{3,})[ \-](\d{2,4})$/)){ const mo=IMP_MON[m[2].slice(0,3).toLowerCase()]; if(mo==null) return null; let y=+m[3]; if(y<100) y+=2000; return impISO(y,mo,+m[1]); }
+  // ISO yyyy-mm-dd (optionally with a T time or trailing text)
+  if(m=s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/)) return impISO(+m[1],+m[2]-1,+m[3]);
+  // dd/mm/yyyy (UK) — trailing time or text ignored
+  if(m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/)){ let d=+m[1],mo=+m[2]-1,y=+m[3]; if(y<100) y+=2000; return impISO(y,mo,d); }
+  // dd Mon yyyy  /  dd-Mon-yy  (full or short month name)
+  if(m=s.match(/^(\d{1,2})[ \-]([A-Za-z]{3,})[ \-.,]+(\d{2,4})/)){ const mo=IMP_MON[m[2].slice(0,3).toLowerCase()]; if(mo==null) return null; let y=+m[3]; if(y<100) y+=2000; return impISO(y,mo,+m[1]); }
+  // Mon dd, yyyy
+  if(m=s.match(/^([A-Za-z]{3,})[ ]+(\d{1,2}),?[ ]+(\d{2,4})/)){ const mo=IMP_MON[m[1].slice(0,3).toLowerCase()]; if(mo==null) return null; let y=+m[3]; if(y<100) y+=2000; return impISO(y,mo,+m[2]); }
   return null;
 }
 function impSniffDelim(text){
@@ -2514,8 +2520,12 @@ function impIsIncome(typ,raw){
 function impBuildRows(text){
   const delim=impSniffDelim(text);
   const rows=impParseCSV(text, delim); const det=impDetect(rows);
-  if(!det) return {ok:false, header:(rows[0]||[])};
+  if(!det) return {ok:false, header:(rows[0]||[]), delim};
   let skipped=0; const CAP=1e8;   // no sane personal transaction exceeds £100m — reject parse garbage
+  // make sure the detected date column really holds dates; if not, find the column that does
+  let dcol=det.di;
+  { const lim=Math.min(rows.length,det.row+31); let n=0; for(let r=det.row+1;r<lim;r++){ if(rows[r]&&impDate(rows[r][dcol])) n++; }
+    if(n===0){ let best=-1,bn=0; const w=(rows[det.row]||[]).length; for(let c=0;c<w;c++){ if(c===det.ai||c===det.oi||c===det.ii) continue; let k=0; for(let r=det.row+1;r<lim;r++){ if(rows[r]&&impDate(rows[r][c])) k++; } if(k>bn){bn=k;best=c;} } if(best>=0) dcol=best; } }
   // if a single amount column has no negatives at all, it's an unsigned magnitude column —
   // direction must come from the Type/Description instead (and defaults to SPENDING).
   let unsigned=false;
@@ -2527,7 +2537,7 @@ function impBuildRows(text){
   const out=[];
   for(let r=det.row+1;r<rows.length;r++){
     const cells=rows[r]; if(!cells) continue;
-    const date=impDate(cells[det.di]); if(!date) continue;
+    const date=impDate(cells[dcol]); if(!date) continue;
     const raw=(det.ds>=0?cells[det.ds]:"")||"";
     const typ=(det.ty>=0?cells[det.ty]:"")||"";
     let amount;
@@ -2542,7 +2552,7 @@ function impBuildRows(text){
     if(!isFinite(amount)||Math.abs(amount)>CAP){ skipped++; continue; }
     out.push({date, amount, raw:(""+raw).trim()});
   }
-  return {ok:true, rows:out, det, unsigned, skipped, delim};
+  return {ok:true, rows:out, det, unsigned, skipped, delim, header:(rows[det.row]||[]), sample:(rows[det.row+1]||[])};
 }
 function impHistoryMap(){
   const tally={};
@@ -2589,10 +2599,10 @@ function impPreview(text){
   const msg=document.getElementById("impMsg"); if(msg) msg.textContent="";
   const res=impBuildRows(text);
   if(!res.ok){ if(msg) msg.textContent="Couldn't detect the columns. Header found: "+((res.header||[]).join(" | ")||"(none)")+". The file needs a Date, a Description and an amount (or Paid out / Paid in) column."; return; }
-  if(!res.rows.length){ if(msg) msg.textContent="No transactions found in that file."; return; }
+  if(!res.rows.length){ if(msg){ const dl=res.delim==="\t"?"tab":(res.delim||","); msg.textContent="No readable transactions. Detected separator: "+dl+". Columns: "+((res.header||[]).join(" | ")||"(none)")+". First row: "+((res.sample||[]).join(" | ")||"(none)")+". If this looks wrong, send me these two lines and I'll tune it."; } return; }
   const rec=impReconcile(res.rows); IMP=rec;
   const nAdd=rec.toAdd.length, nMatch=rec.matched.length;
-  document.getElementById("impSummary").innerHTML="Found <b>"+(nAdd+nMatch)+"</b> transaction"+((nAdd+nMatch)===1?"":"s")+" · <b>"+nMatch+"</b> already in your log · <b>"+nAdd+"</b> new to add."+(res.skipped?" · <b>"+res.skipped+"</b> unreadable row"+(res.skipped===1?"":"s")+" skipped":"")+(nAdd?' <button class="btn sec" style="margin-top:8px;width:auto;padding:5px 12px;font-size:13px" onclick="impAllSpending()">Set all to spending</button>':"");
+  document.getElementById("impSummary").innerHTML="Found <b>"+(nAdd+nMatch)+"</b> transaction"+((nAdd+nMatch)===1?"":"s")+" · <b>"+nMatch+"</b> duplicate"+(nMatch===1?"":"s")+" (already logged) · <b>"+nAdd+"</b> new to add."+(res.skipped?" · <b>"+res.skipped+"</b> unreadable row"+(res.skipped===1?"":"s")+" skipped":"")+(nAdd?' <button class="btn sec" style="margin-top:8px;width:auto;padding:5px 12px;font-size:13px" onclick="impAllSpending()">Set all to spending</button>':"");
   document.getElementById("impList").innerHTML = nAdd ? rec.toAdd.map((r,i)=>`
     <div class="card" style="padding:10px;margin-bottom:8px">
       <label style="display:flex;align-items:center;gap:8px;margin:0">
@@ -2633,7 +2643,8 @@ function impConfirm(){
     if(cat && !inc) impRememberRule(r.raw, cat);
     n++;
   });
-  save(); impCancel(); toast(n?("Added "+n+" transaction"+(n===1?"":"s")+" ✓"):"Nothing selected"); refreshAll();
+  const dup=(IMP&&IMP.matched)?IMP.matched.length:0;
+  save(); impCancel(); toast(n?("Added "+n+" new"+(dup?(" · "+dup+" duplicate"+(dup===1?"":"s")+" skipped"):"")+" ✓"):"Nothing selected"); refreshAll();
 }
 function impCancel(){ const m=document.getElementById("impModal"); if(m) m.classList.remove("on"); IMP=null; }
 /* ============================================================= end STATEMENT IMPORT */
