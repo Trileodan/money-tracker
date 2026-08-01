@@ -390,6 +390,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 60 · statement import</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -2429,7 +2430,9 @@ function impClean(s){
     .filter(w=>w && !/^\d+$/.test(w) && !IMP_STOP[w] && w.length>1)
     .join(" ").trim();
 }
-function impKey(s){ const c=impClean(s); return c.split(" ")[0]||c; }
+const IMP_PROC={zettle:1,izettle:1,iz:1,sumup:1,sum:1,square:1,sq:1,paypal:1,pp:1,ppl:1,stripe:1,worldpay:1,wpy:1,wp:1,takepayments:1,takepayment:1,take:1,teya:1,dojo:1,mypos:1,paym:1,gocardless:1,gc:1,shopify:1,sp:1,tpp:1,klarna:1,adyen:1,ayden:1,payapp:1};
+function impKey(s){ let t=impClean(s).split(" ").filter(Boolean); while(t.length>1 && IMP_PROC[t[0]]) t.shift(); return t[0]||impClean(s); }
+function impCore(s){ let t=impClean(s).split(" ").filter(Boolean), stripped=false; while(t.length>1 && IMP_PROC[t[0]]){ t.shift(); stripped=true; } if(!t.length) return ""; return stripped ? t.slice(0,3).join(" ") : t[0]; }
 function impNice(s){ const c=impClean(s); if(!c) return (""+(s||"")).trim(); return c.split(" ").slice(0,4).map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" "); }
 function impNum(s){
   if(s==null) return NaN;
@@ -2575,25 +2578,27 @@ function impCatFor(desc, income, hist){
   if(hist && hist[key]) return hist[key];
   return "";
 }
-function impRememberRule(desc,cat){ if(!cat) return; impInit(); const key=impKey(desc); if(!key) return; const ex=DB.catRules.find(r=>r.m===key); if(ex) ex.c=cat; else DB.catRules.push({m:key,c:cat}); }
+function impRememberRule(desc,cat){ if(!cat || INCOME_CATS.indexOf(cat)>=0) return; impInit(); const key=impCore(desc); if(!key || key.length<3) return; const ex=DB.catRules.find(r=>r.m===key); if(ex) ex.c=cat; else DB.catRules.push({m:key,c:cat}); }
 function impReconcile(list){
   const tolEl=document.getElementById("impTol");
   const tol=Math.max(0,parseInt(tolEl?tolEl.value:"4",10)||4);
   const hist=impHistoryMap();
-  const pool=(DB.txns||[]).map(t=>({date:t.date, amt:t.amount, key:impKey(t.desc||""), imp:t.imp||null, used:false}));
+  const pool=(DB.txns||[]).map(t=>({date:t.date, amt:t.amount, key:impKey(t.desc||""), desc:(t.desc||""), cat:t.category||"", imp:t.imp||null, used:false}));
   const matched=[], toAdd=[];
-  list.forEach(row=>{
-    const key=impKey(row.raw);
-    const fp=key+"|"+row.amount.toFixed(2)+"|"+row.date;
-    let ex=pool.find(pp=>!pp.used && pp.imp===fp);
-    if(ex){ ex.used=true; matched.push(Object.assign({},row,{key})); return; }
-    let best=null,bestDiff=1e9;
-    pool.forEach(pp=>{ if(pp.used||pp.key!==key) return; if(Math.abs(pp.amt-row.amount)>=0.005) return; const dd=Math.abs((parse(pp.date)-parse(row.date))/86400000); if(dd<=tol && dd<bestDiff){ best=pp; bestDiff=dd; } });
-    if(best){ best.used=true; matched.push(Object.assign({},row,{key})); return; }
-    const income=row.amount>0;
-    const cat=impCatFor(row.raw, income, hist);
-    const maybe=(DB.txns||[]).some(t=>t.date===row.date && impKey(t.desc||"")===key && Math.abs(t.amount-row.amount)<0.005);
-    toAdd.push({date:row.date, amount:row.amount, key, nice:impNice(row.raw), raw:row.raw, income, cat, maybe, fp, add:true});
+  const near=(a,b)=>Math.abs((parse(a)-parse(b))/86400000);
+  list.forEach(row=>{ row._key=impKey(row.raw); row._fp=row._key+"|"+row.amount.toFixed(2)+"|"+row.date; });
+  // pass 0 — exact re-import fingerprint
+  let pend=[];
+  list.forEach(row=>{ const ex=pool.find(pp=>!pp.used && pp.imp===row._fp); if(ex){ ex.used=true; matched.push(Object.assign({},row,{key:row._key})); } else pend.push(row); });
+  // pass A — confident: same merchant + amount + within date tolerance
+  let pend2=[];
+  pend.forEach(row=>{ let b=null,bd=1e9; pool.forEach(pp=>{ if(pp.used||pp.key!==row._key) return; if(Math.abs(pp.amt-row.amount)>=0.005) return; const dd=near(pp.date,row.date); if(dd<=tol&&dd<bd){b=pp;bd=dd;} }); if(b){ b.used=true; matched.push(Object.assign({},row,{key:row._key, learnCat:b.cat})); } else pend2.push(row); });
+  // pass B — fuzzy: same amount + within date tolerance but a different description => LIKELY duplicate
+  pend2.forEach(row=>{
+    let b=null,bd=1e9; pool.forEach(pp=>{ if(pp.used) return; if(Math.abs(pp.amt-row.amount)>=0.005) return; const dd=near(pp.date,row.date); if(dd<=tol&&dd<bd){b=pp;bd=dd;} });
+    const income=row.amount>0, cat=impCatFor(row.raw, income, hist);
+    if(b){ const lc=(b.cat && INCOME_CATS.indexOf(b.cat)<0)?b.cat:cat; b.used=true; toAdd.push({date:row.date, amount:row.amount, key:row._key, nice:impNice(row.raw), raw:row.raw, income, cat:lc, dupOf:((b.desc||"an existing entry")+" · "+gbp(b.amt)), learnCat:b.cat, add:false, fp:row._fp}); }
+    else { toAdd.push({date:row.date, amount:row.amount, key:row._key, nice:impNice(row.raw), raw:row.raw, income, cat, add:true, fp:row._fp}); }
   });
   return {matched, toAdd};
 }
@@ -2609,7 +2614,8 @@ function impPreview(text){
   if(!res.rows.length){ if(msg){ const dl=res.delim==="\t"?"tab":(res.delim||","); msg.textContent="No readable transactions. Detected separator: "+dl+". Columns: "+((res.header||[]).join(" | ")||"(none)")+". First row: "+((res.sample||[]).join(" | ")||"(none)")+". If this looks wrong, send me these two lines and I'll tune it."; } return; }
   const rec=impReconcile(res.rows); IMP=rec;
   const nAdd=rec.toAdd.length, nMatch=rec.matched.length;
-  document.getElementById("impSummary").innerHTML="Found <b>"+(nAdd+nMatch)+"</b> transaction"+((nAdd+nMatch)===1?"":"s")+" · <b>"+nMatch+"</b> duplicate"+(nMatch===1?"":"s")+" (already logged) · <b>"+nAdd+"</b> new to add."+(res.skipped?" · <b>"+res.skipped+"</b> unreadable row"+(res.skipped===1?"":"s")+" skipped":"")+(nAdd?' <button class="btn sec" style="margin-top:8px;width:auto;padding:5px 12px;font-size:13px" onclick="impAllSpending()">Set all to spending</button>':"");
+  const nNew=rec.toAdd.filter(x=>x.add).length, nPoss=nAdd-nNew;
+  document.getElementById("impSummary").innerHTML="Found <b>"+(nAdd+nMatch)+"</b> transaction"+((nAdd+nMatch)===1?"":"s")+" · <b>"+nMatch+"</b> duplicate"+(nMatch===1?"":"s")+" skipped"+(nPoss?" · <b>"+nPoss+"</b> possible duplicate"+(nPoss===1?"":"s")+" (unticked)":"")+" · <b>"+nNew+"</b> new to add."+(res.skipped?" · <b>"+res.skipped+"</b> unreadable row"+(res.skipped===1?"":"s")+" skipped":"")+(nAdd?' <button class="btn sec" style="margin-top:8px;width:auto;padding:5px 12px;font-size:13px" onclick="impAllSpending()">Set all to spending</button>':"");
   document.getElementById("impList").innerHTML = nAdd ? rec.toAdd.map((r,i)=>`
     <div class="card" style="padding:10px;margin-bottom:8px">
       <label style="display:flex;align-items:center;gap:8px;margin:0">
@@ -2617,7 +2623,7 @@ function impPreview(text){
         <span style="flex:1;min-width:0;overflow:hidden">
           <span style="font-weight:700">${r.nice||r.raw||"(no description)"}</span>
           <span class="tiny muted"> · ${fmtDateY(r.date)}</span>
-          ${r.maybe?'<span class="tiny" style="color:var(--amber);font-weight:700"> · possible duplicate</span>':''}
+          ${r.dupOf?`<span class="tiny" style="color:var(--amber);font-weight:700"> · possible duplicate of ${r.dupOf}</span>`:''}
         </span>
         <span id="impAmt${i}" style="font-weight:800;color:${r.income?'var(--green)':'var(--txt)'}">${gbp(r.amount)}</span>
       </label>
@@ -2640,16 +2646,24 @@ function impAllSpending(){ if(!IMP||!IMP.toAdd) return; IMP.toAdd.forEach((r,i)=
 function impConfirm(){
   if(!IMP||!IMP.toAdd){ impCancel(); return; }
   let n=0;
+  let learned=0;
   IMP.toAdd.forEach((r,i)=>{
-    const chk=document.getElementById("impChk"+i); if(!chk||!chk.checked) return;
+    const chk=document.getElementById("impChk"+i);
+    if(!chk||!chk.checked){
+      // accepted as a duplicate (left unticked) -> still learn the merchant => category mapping
+      if(r.learnCat && INCOME_CATS.indexOf(r.learnCat)<0){ impRememberRule(r.raw, r.learnCat); learned++; }
+      return;
+    }
     const de=document.getElementById("impDir"+i); const inc=de?de.value==="in":r.income;
     const amt=inc?Math.abs(r.amount):-Math.abs(r.amount);
     const sel=document.getElementById("impCat"+i); const cat=(sel?sel.value:"")||(inc?"Other Income":"");
     const fp=r.key+"|"+amt.toFixed(2)+"|"+r.date;
     DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,7)+i, date:r.date, desc:r.nice||r.raw||cat, amount:amt, category:cat, byId:(typeof CURRENT!=="undefined"&&CURRENT)?CURRENT.id:null, byName:(typeof curName==="function"?curName():""), src:"import", imp:fp});
-    if(cat && !inc) impRememberRule(r.raw, cat);
+    if(cat && !inc){ impRememberRule(r.raw, cat); learned++; }
     n++;
   });
+  // learn from confident duplicates that were auto-skipped
+  (IMP.matched||[]).forEach(m=>{ if(m.learnCat && INCOME_CATS.indexOf(m.learnCat)<0){ impRememberRule(m.raw, m.learnCat); learned++; } });
   const dup=(IMP&&IMP.matched)?IMP.matched.length:0;
   save(); impCancel(); toast(n?("Added "+n+" new"+(dup?(" · "+dup+" duplicate"+(dup===1?"":"s")+" skipped"):"")+" ✓"):"Nothing selected"); refreshAll();
 }
