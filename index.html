@@ -2485,30 +2485,35 @@ function impParseCSV(text, delim){
   return rows.filter(r=>r.some(c=>(c||"").trim()!==""));
 }
 function impDetect(rows){
-  const dsNames=["description","details","narrative","reference","transactions","memo"];
+  const dsNames=["description","details","merchant","payee","name","narrative","transactions","memo","reference"];
   for(let r=0;r<Math.min(rows.length,25);r++){
     const cells=rows[r].map(x=>(x||"").toLowerCase().trim());
-    let di=-1,ds=-1,ai=-1,oi=-1,ii=-1,ty=-1;
+    let di=-1,ds=-1,ai=-1,oi=-1,ii=-1,ty=-1,ci=-1;
     cells.forEach((c,i)=>{ if(di<0 && c==="date") di=i; });
     if(di<0) cells.forEach((c,i)=>{ if(di<0 && c.indexOf("date")>=0) di=i; });
     for(const nm of dsNames){ if(ds<0) cells.forEach((c,i)=>{ if(ds<0 && c.indexOf(nm)>=0) ds=i; }); }
     cells.forEach((c,i)=>{ if(ty<0 && c.indexOf("type")>=0) ty=i; });
-    // separate out/in columns first (Paid out/Paid in, Money out/in, Debit/Credit, Withdrawn/Deposit)
+    // a single debit/credit INDICATOR column (text like DBIT/CRDT), e.g. "Debit or Credit", "Dr/Cr"
+    cells.forEach((c,i)=>{ if(ci<0 && ((c.indexOf("debit")>=0 && c.indexOf("credit")>=0)||c.indexOf("dr/cr")>=0||c.indexOf("cr/dr")>=0||c==="dr"||c==="cr")) ci=i; });
+    // separate out/in MONEY columns (never the indicator column)
     cells.forEach((c,i)=>{
+      if(i===ci) return;
       if(oi<0 && (c.indexOf("paid out")>=0||c.indexOf("money out")>=0||c.indexOf("debit")>=0||c.indexOf("withdrawn")>=0||c.indexOf("withdrawal")>=0)) oi=i;
       if(ii<0 && (c.indexOf("paid in")>=0||c.indexOf("money in")>=0||c.indexOf("credit")>=0||c.indexOf("deposit")>=0)) ii=i;
     });
-    // single signed amount column (never a column we already claimed as out/in)
+    // single amount column (never an out/in or indicator column)
     cells.forEach((c,i)=>{
-      if(i===oi||i===ii) return;
+      if(i===oi||i===ii||i===ci) return;
       if(ai<0 && (c==="value"||c==="amount"||c==="money"||c.indexOf("amount")>=0||c.indexOf("value")>=0)) ai=i;
     });
-    const twoCol = oi>=0 && ii>=0;
+    const twoCol = oi>=0 && ii>=0 && oi!==ii;   // genuine two-column layout, not one indicator column
     const hasAmt = ai>=0 || oi>=0 || ii>=0;
     if(di>=0 && hasAmt){
       if(ds<0 && ty>=0) ds=ty;
       if(ds<0) cells.forEach((c,i)=>{ if(ds<0 && c.indexOf("location")>=0) ds=i; });
-      return {row:r, di, ds, ai:twoCol?-1:ai, oi, ii, ty};
+      if(twoCol) return {row:r, di, ds, ai:-1, oi, ii, ty, ci};
+      const acol = ai>=0?ai:(oi>=0?oi:ii);
+      return {row:r, di, ds, ai:acol, oi:-1, ii:-1, ty, ci};
     }
   }
   return null;
@@ -2517,6 +2522,7 @@ function impIsIncome(typ,raw){
   const s=((typ||"")+" "+(raw||"")).toLowerCase();
   return /(credit|deposit|refund|interest|salary|wages|dividend|received|paid in|payment in|bacs cr|faster payment received|transfer in|cashback|reimburs|rebate)/.test(s);
 }
+function impIndIncome(v){ const t=(""+(v||"")).trim().toLowerCase(); if(!t) return false; if(t.charAt(0)==="c") return true; if(t.charAt(0)==="d") return false; return /credit|refund|received|deposit|paid in/.test(t); }
 function impBuildRows(text){
   const delim=impSniffDelim(text);
   const rows=impParseCSV(text, delim); const det=impDetect(rows);
@@ -2543,7 +2549,8 @@ function impBuildRows(text){
     let amount;
     if(det.ai>=0){
       let v=impNum(cells[det.ai]); if(isNaN(v)||v===0) continue;
-      amount = unsigned ? (impIsIncome(typ,raw)?Math.abs(v):-Math.abs(v)) : v;
+      if(det.ci>=0) amount = impIndIncome(cells[det.ci]) ? Math.abs(v) : -Math.abs(v);   // Debit/Credit indicator wins
+      else amount = unsigned ? (impIsIncome(typ,raw)?Math.abs(v):-Math.abs(v)) : v;
     } else {
       const o=impNum(cells[det.oi]), i=impNum(cells[det.ii]);
       if(!isNaN(i)&&i>0) amount=Math.abs(i); else if(!isNaN(o)&&o>0) amount=-Math.abs(o); else amount=NaN;
