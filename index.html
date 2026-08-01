@@ -137,6 +137,7 @@ label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;text-transf
 .seg button.on{background:var(--accent);color:#06281d;}
 .strbox{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px;cursor:pointer;}
 .strbox.open{grid-column:1 / -1;}
+.strbox.safe{border-color:#e8b923;box-shadow:0 0 0 2px #e8b923,0 0 12px rgba(232,185,35,.45);}
 .famrow{padding:12px 0;border-bottom:1px solid var(--line);}
 .famrow:last-child{border-bottom:none;}
 .famta{width:100%;box-sizing:border-box;height:96px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--txt);font-family:monospace;font-size:12px;}
@@ -2254,7 +2255,10 @@ function streakStats(st){
     for(let d=new Date(anchor); d<=today && guard++<2200; d.setDate(d.getDate()+1)){
       if(overOn(d)){ cur=0; lastBroken=ymd(d); } else { cur++; if(cur>best) best=cur; }
     }
-    return {current:cur,best,lastBroken,active:!overOn(today),unit,allow,winDays};
+    let todayCount=0; { const w=new Date(today); for(let i=0;i<winDays;i++){ todayCount+=occ[ymd(w)]||0; w.setDate(w.getDate()-1); } }
+    const room=allow-todayCount;              // spends still allowed in this window before it would break
+    const safe=allow>0 && room>=1;            // gold ring: you can buy now without breaking the streak
+    return {current:cur,best,lastBroken,active:!overOn(today),unit,allow,winDays,room,safe};
   }
   // consistency — count consecutive weeks/months with a match
   const keys=[]; const seen={}; let guard=0;
@@ -2281,14 +2285,16 @@ let STREAK_OPEN=new Set();
 function toggleStreakBox(id){ if(STREAK_OPEN.has(id)) STREAK_OPEN.delete(id); else STREAK_OPEN.add(id); renderStreaks(); }
 function streakBoxHTML(st){
   const open=STREAK_OPEN.has(st.id), s=streakStats(st), u=s.unit;
-  const col=s.active?"var(--green)":"var(--red)";
-  let h=`<div class="strbox${open?" open":""}" onclick="toggleStreakBox('${st.id}')">
+  const col=s.safe?"#e8b923":(s.active?"var(--green)":"var(--red)");
+  const winLabel=(st.kind!=="do" && (+st.allow||0)>0) ? ((+st.winN||1)===1?(st.winUnit||"week"):((+st.winN||1)+" "+(st.winUnit||"week")+"s")) : "";
+  let h=`<div class="strbox${open?" open":""}${s.safe?" safe":""}" onclick="toggleStreakBox('${st.id}')">
       <div class="tiny" style="font-weight:700;display:flex;justify-content:space-between;gap:6px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🔥 ${st.name}</span><span style="color:${col}">●</span></div>
       <div style="margin-top:6px"><span style="font-size:26px;font-weight:800">${s.current}</span> <span class="tiny muted">${u}${s.current===1?"":"s"}</span></div>`;
   if(open){
     const status = st.kind==="do" ? (s.active?"Active":"Broken") : (s.active?"Active":((s.allow>0)?"Over allowance today":"Slipped today"));
     const lb=streakBrokenLabel(st,s.lastBroken);
-    h+=`<div class="tiny muted" style="margin-top:8px">Best ever: <b>${s.best}</b> ${u}${s.best===1?"":"s"} · ${status}</div>
+    h+=`${s.safe?`<div class="tiny" style="margin-top:8px;color:#e8b923;font-weight:700">✨ Safe to spend — ${s.room} more this ${winLabel}</div>`:""}
+      <div class="tiny muted" style="margin-top:8px">Best ever: <b>${s.best}</b> ${u}${s.best===1?"":"s"} · ${status}</div>
       <div class="tiny muted" style="margin-top:2px">${streakCriteria(st)}${s.lastBroken?" · last broken "+lb:""}</div>
       <div class="catrow-btns" style="margin-top:8px">
         <button class="btn sec" onclick="event.stopPropagation();editStreak('${st.id}')">Edit</button>
