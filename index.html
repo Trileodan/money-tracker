@@ -390,7 +390,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 60 · statement import</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 61 · statement import</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -2969,13 +2969,24 @@ function famImport(){ if(famAddPartner(decodeSummary(document.getElementById("fa
 function famRenderQR(){
   const box=document.getElementById("famQR"); if(!box) return;
   if(typeof qrcode==="undefined"){ box.innerHTML='<div class="tiny muted" style="text-align:center">QR needs an internet connection — use Copy/Paste instead.</div>'; return; }
-  let sum=famSelfSummary(), code=encodeSummary(sum), img=null, note="", guard=0;
-  while(guard++<40){
-    try{ const qr=qrcode(0,"L"); qr.addData(code); qr.make(); img=qr.createDataURL(5,10); break; }
-    catch(e){ const keys=Object.keys(sum.months||{}).sort(); if(keys.length<=1){ img=null; break; } delete sum.months[keys[0]]; code=encodeSummary(sum); note="Covers your most recent months — use Copy/Paste for full history."; }
+  // Cap the QR version so modules stay large enough for another phone's camera.
+  // Pick the SMALLEST version that fits (coarsest code); if even the cap can't hold
+  // the data, drop the oldest month and try again.
+  const MAXVER=13;
+  let sum=famSelfSummary(), img=null, note="", guard=0;
+  while(guard++<48){
+    const code=encodeSummary(sum); let done=false;
+    for(let v=4; v<=MAXVER; v++){
+      try{ const qr=qrcode(v,"L"); qr.addData(code); qr.make(); img=qr.createDataURL(8,32); done=true; break; }catch(e){}
+    }
+    if(done) break;
+    const keys=Object.keys(sum.months||{}).sort();
+    if(keys.length<=1){ img=null; break; }
+    delete sum.months[keys[0]];
+    note="Covers your most recent months — use Copy/Paste for full history.";
   }
   box.innerHTML = img
-    ? `<img src="${img}" alt="QR code" style="width:100%;max-width:250px;display:block;margin:6px auto;background:#fff;border-radius:8px;padding:8px">${note?`<div class="tiny muted" style="text-align:center">${note}</div>`:""}`
+    ? `<img src="${img}" alt="QR code" style="width:100%;max-width:280px;image-rendering:pixelated;display:block;margin:6px auto;background:#fff;border-radius:8px;padding:10px">${note?`<div class="tiny muted" style="text-align:center">${note}</div>`:""}`
     : '<div class="tiny muted" style="text-align:center">Too much history for a QR — use Copy/Paste instead.</div>';
 }
 let famScanStream=null, famScanRAF=null;
