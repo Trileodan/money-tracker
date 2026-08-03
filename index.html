@@ -412,7 +412,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 64 · smaller QR codes</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 65 · scan from photo</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -701,7 +701,11 @@ canvas{max-width:100%;}
     <p class="tiny muted" id="famScanMsg">Point at your partner's QR code…</p>
     <video id="famVideo" playsinline muted style="width:100%;border-radius:12px;background:#000"></video>
     <canvas id="famCanvas" style="display:none"></canvas>
-    <button class="btn sec" style="margin-top:10px" onclick="closeFamScan()">Cancel</button>
+    <p class="tiny muted" style="margin-top:8px">Trouble scanning? Take a photo of the code instead — it reads sharper, dense codes best.</p>
+    <div class="row" style="margin-top:6px">
+      <label class="btn sec" style="margin:0;text-align:center;cursor:pointer">Scan from photo<input type="file" accept="image/*" capture="environment" style="display:none" onchange="famScanPhoto(this)"></label>
+      <button class="btn sec" onclick="closeFamScan()">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -716,7 +720,7 @@ canvas{max-width:100%;}
     </div>
     <div class="row" style="margin-top:10px;align-items:center;gap:8px">
       <label style="margin:0;white-space:nowrap">QR covers</label>
-      <select id="famQRMonths" onchange="famRenderQR()" style="width:auto"><option value="1">This month</option><option value="3" selected>Last 3 months</option><option value="6">Last 6 months</option><option value="99">Everything</option></select>
+      <select id="famQRMonths" onchange="famRenderQR()" style="width:auto"><option value="cur">This month</option><option value="last">Last month</option><option value="3" selected>Last 3 months</option><option value="6">Last 6 months</option><option value="99">Everything</option></select>
     </div>
     <div id="famQR" style="margin-top:10px"></div>
     <p class="tiny muted" style="text-align:center;margin-top:2px">A shorter period makes a simpler code that's easier to scan. Copy/paste always sends your full history.</p>
@@ -3114,9 +3118,13 @@ function famRenderQR(){
   // the data, drop the oldest month and try again.
   const MAXVER=18;
   let sum=famSelfSummary(), img=null, note="", guard=0;
-  const sel=document.getElementById("famQRMonths"); const nMonths=sel?(+sel.value||3):3;
+  const sel=document.getElementById("famQRMonths"); const selv=sel?sel.value:"3";
   const allKeys=Object.keys(sum.months||{}).sort();
-  if(nMonths<allKeys.length){ const keep=allKeys.slice(-nMonths), m2={}; keep.forEach(k=>m2[k]=sum.months[k]); sum.months=m2; if(nMonths<=6) note="Covers your most recent "+nMonths+" month"+(nMonths===1?"":"s")+" — Copy/Paste for full history."; }
+  let keep=null, lab="";
+  if(selv==="cur"){ keep=allKeys.slice(-1); lab="this month"; }
+  else if(selv==="last"){ keep=(allKeys.length>=2)?allKeys.slice(-2,-1):allKeys.slice(-1); lab="last month"; }
+  else if(selv!=="99"){ const n=+selv||3; if(n<allKeys.length){ keep=allKeys.slice(-n); lab="your most recent "+n+" months"; } }
+  if(keep && keep.length && keep.length<allKeys.length){ const m2={}; keep.forEach(k=>m2[k]=sum.months[k]); sum.months=m2; note="Covers "+lab+" — Copy/Paste for full history."; }
   while(guard++<48){
     const code=encodeSummary(sum); let done=false;
     for(let v=4; v<=MAXVER; v++){
@@ -3139,7 +3147,7 @@ function openFamScan(){
   if(typeof jsQR==="undefined"){ msg.textContent="Scanning needs an internet connection — use paste instead."; return; }
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ msg.textContent="This device can't open the camera here — use paste instead."; return; }
   msg.textContent="Point at your partner's QR code…";
-  navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}).then(function(stream){
+  navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:1280},height:{ideal:1280}}}).then(function(stream){
     famScanStream=stream; video.srcObject=stream; video.setAttribute("playsinline",""); video.muted=true;
     const pl=video.play(); if(pl&&pl.catch) pl.catch(function(){});
     const canvas=document.getElementById("famCanvas"), ctx=canvas.getContext("2d");
@@ -3148,7 +3156,7 @@ function openFamScan(){
       if(video.readyState>=2 && video.videoWidth){
         canvas.width=video.videoWidth; canvas.height=video.videoHeight;
         ctx.drawImage(video,0,0,canvas.width,canvas.height);
-        try{ const im=ctx.getImageData(0,0,canvas.width,canvas.height); const res=jsQR(im.data,im.width,im.height);
+        try{ const im=ctx.getImageData(0,0,canvas.width,canvas.height); const res=jsQR(im.data,im.width,im.height,{inversionAttempts:"attemptBoth"});
           if(res && res.data){ const sum=decodeSummary(res.data); if(sum && sum.months){ closeFamScan(); famAddPartner(sum); return; } else { msg.textContent="That QR isn't a family code — keep pointing…"; } }
         }catch(e){}
       }
@@ -3156,6 +3164,27 @@ function openFamScan(){
     };
     famScanRAF=requestAnimationFrame(tick);
   }).catch(function(e){ msg.textContent="Couldn't open the camera (check permission) — use paste instead."; });
+}
+function famScanPhoto(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const msg=document.getElementById("famScanMsg");
+  if(typeof jsQR==="undefined"){ if(msg) msg.textContent="Scanning needs an internet connection — use paste instead."; return; }
+  const img=new Image();
+  img.onload=function(){
+    try{
+      const cv=document.getElementById("famCanvas"), cx=cv.getContext("2d");
+      let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height; const MAX=1600;
+      if(Math.max(w,h)>MAX){ const sc=MAX/Math.max(w,h); w=Math.round(w*sc); h=Math.round(h*sc); }
+      cv.width=w; cv.height=h; cx.drawImage(img,0,0,w,h);
+      const im=cx.getImageData(0,0,w,h);
+      const res=jsQR(im.data,im.width,im.height,{inversionAttempts:"attemptBoth"});
+      if(res&&res.data){ const sum=decodeSummary(res.data); if(sum&&sum.months){ closeFamScan(); famAddPartner(sum); return; } if(msg) msg.textContent="That photo isn't a family code."; }
+      else if(msg) msg.textContent="Couldn't find a code in that photo — try again, filling the frame and well-lit.";
+    }catch(e){ if(msg) msg.textContent="Couldn't read that image."; }
+    input.value="";
+  };
+  img.onerror=function(){ if(msg) msg.textContent="Couldn't open that image."; };
+  img.src=URL.createObjectURL(f);
 }
 function closeFamScan(){ if(famScanRAF){ cancelAnimationFrame(famScanRAF); famScanRAF=null; } if(famScanStream){ famScanStream.getTracks().forEach(function(t){ t.stop(); }); famScanStream=null; } const m=document.getElementById("famScanModal"); if(m) m.classList.remove("on"); }
 function famRemovePartner(name){ familyInit(); DB.family.partners=DB.family.partners.filter(pp=>pp.name!==name); save(); renderFamily(); }
