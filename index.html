@@ -412,7 +412,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 63 · pots, mortgage &amp; import</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 64 · smaller QR codes</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -2899,8 +2899,38 @@ function famSelfMonths(){
 }
 function famSelfSummary(){ familyInit(); return {v:2,name:familyMyName(),date:todayISO(),savBal:fam_r2(savingsTotal()),months:famSelfMonths()}; }
 function famContributors(){ familyInit(); return [famSelfSummary()].concat(DB.family.partners); }
-function encodeSummary(sum){ try{ return "MTF2."+btoa(unescape(encodeURIComponent(JSON.stringify(sum)))); }catch(e){ return ""; } }
-function decodeSummary(code){ try{ code=(code||"").trim(); const m=code.match(/MTF2\.([A-Za-z0-9+/=]+)/); const b64=m?m[1]:code.replace(/\s+/g,""); return JSON.parse(decodeURIComponent(escape(atob(b64)))); }catch(e){ return null; } }
+function encodeSummary(sum){
+  try{
+    const months=sum.months||{}, G={Needs:0,Wants:1,Savings:2};
+    const cats=[], grp=[], idx={};
+    const catId=(name,group)=>{ const k=(name||"")+"|"+(group||""); if(idx[k]==null){ idx[k]=cats.length; cats.push(name||""); grp.push(G[group]!=null?G[group]:0); } return idx[k]; };
+    const mo={};
+    Object.keys(months).forEach(mk=>{ const md=months[mk]||{};
+      const c=(md.c||[]).map(row=>[catId(row[0],row[1]), Math.round(+row[2]||0)]);
+      mo[mk]=[Math.round(+md.i||0),Math.round(+md.ewf||0),Math.round(+md.enf||0),Math.round(+md.esf||0),Math.round(+md.ai||0),Math.round(+md.aw||0),Math.round(+md.an||0),Math.round(+md.as||0),c];
+    });
+    const obj={v:3,n:sum.name||"",d:sum.date||"",sb:Math.round(+sum.savBal||0),c:cats,g:grp,m:mo};
+    return "MTF3."+btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+  }catch(e){ return ""; }
+}
+function decodeSummary(code){
+  try{
+    code=(code||"").trim();
+    let m=code.match(/MTF3\.([A-Za-z0-9+/=]+)/);
+    if(m){
+      const o=JSON.parse(decodeURIComponent(escape(atob(m[1]))));
+      const GN=["Needs","Wants","Savings"], cats=o.c||[], grp=o.g||[], months={};
+      Object.keys(o.m||{}).forEach(mk=>{ const a=o.m[mk]||[];
+        const c=(a[8]||[]).map(r=>[cats[r[0]]||"?", GN[grp[r[0]]]||"Needs", +r[1]||0]);
+        months[mk]={i:+a[0]||0,ewf:+a[1]||0,enf:+a[2]||0,esf:+a[3]||0,ai:+a[4]||0,aw:+a[5]||0,an:+a[6]||0,as:+a[7]||0,c};
+      });
+      return {v:2,name:o.n||"",date:o.d||"",savBal:+o.sb||0,months};
+    }
+    m=code.match(/MTF2\.([A-Za-z0-9+/=]+)/);
+    const b64=m?m[1]:code.replace(/\s+/g,"");
+    return JSON.parse(decodeURIComponent(escape(atob(b64))));
+  }catch(e){ return null; }
+}
 /* aggregate a list of summaries over a set of month keys -> combined totals, grade components, and per-person splits */
 function famAggregate(contributors, keys){
   const out={income:0,spend:0,saved:0,net:0, g:{aw:0,ewp:0,ewf:0,an:0,enf:0,as:0,esp:0}, cats:{}, groups:{}};
@@ -3082,7 +3112,7 @@ function famRenderQR(){
   // Cap the QR version so modules stay large enough for another phone's camera.
   // Pick the SMALLEST version that fits (coarsest code); if even the cap can't hold
   // the data, drop the oldest month and try again.
-  const MAXVER=13;
+  const MAXVER=18;
   let sum=famSelfSummary(), img=null, note="", guard=0;
   const sel=document.getElementById("famQRMonths"); const nMonths=sel?(+sel.value||3):3;
   const allKeys=Object.keys(sum.months||{}).sort();
@@ -3100,7 +3130,7 @@ function famRenderQR(){
   }
   box.innerHTML = img
     ? `<img src="${img}" alt="QR code" style="width:100%;max-width:280px;image-rendering:pixelated;display:block;margin:6px auto;background:#fff;border-radius:8px;padding:10px">${note?`<div class="tiny muted" style="text-align:center">${note}</div>`:""}`
-    : '<div class="tiny muted" style="text-align:center">Too much history for a QR — use Copy/Paste instead.</div>';
+    : '<div class="tiny muted" style="text-align:center">Still a lot for one QR — pick a shorter period above, or use Copy/Paste.</div>';
 }
 let famScanStream=null, famScanRAF=null;
 function openFamScan(){
