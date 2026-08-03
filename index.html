@@ -313,6 +313,7 @@ canvas{max-width:100%;}
       <div class="acc-head" onclick="toggleAcc('accImport')"><span>Import bank statement</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
         <p class="sub" style="margin-top:2px">Import a CSV statement (Nationwide, NatWest and most UK banks). I'll sort each transaction into a category, skip anything already in your log, and let you review everything before it's added. Nothing leaves your device.</p>
+        <div id="impResume" style="display:none;margin:2px 0 10px"></div>
         <div class="field"><label>Statement file (.csv)</label><input type="file" id="impFileInput" accept=".csv,text/csv" onchange="impFile(this)"></div>
         <div class="field"><label>Match window (days)</label><input type="number" id="impTol" value="4" min="0" step="1" inputmode="numeric" style="max-width:120px"><p class="note" style="margin:6px 0 0">A manual entry within this many days of a statement line (same shop, same amount) counts as the same transaction — so it won't be added twice.</p></div>
         <p class="note" id="impMsg" style="color:var(--amber)"></p>
@@ -364,6 +365,27 @@ canvas{max-width:100%;}
         </div>
       </div>
     </div>
+    <div class="card" id="famSavings">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <h2 style="margin:2px 0 0">Total family savings</h2>
+        <span id="famSavTotal" style="font-weight:800;font-size:22px">£0</span>
+      </div>
+      <div id="famSavBreak" class="tiny muted" style="margin-top:6px"></div>
+    </div>
+    <div class="card" id="famMortgage">
+      <h2 style="margin-top:2px">Mortgage — how much of your home you own</h2>
+      <div id="mortNone" style="display:none">
+        <p class="note">Add your mortgage balance and home value. Payments in your <b>Mortgage</b> category are taken off automatically.</p>
+        <button class="btn sec" style="margin-top:6px" onclick="openMortgage()">Set up mortgage</button>
+      </div>
+      <div id="mortHave" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="tiny muted">You own</span><span id="mortPct" style="font-weight:800;font-size:24px">0%</span></div>
+        <div class="bar" style="height:12px;margin-top:8px"><span id="mortBar" style="width:0%;background:var(--green)"></span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px" class="tiny muted"><span>You owe <b id="mortOwed">£0</b></span><span>Home value <b id="mortValue">£0</b></span></div>
+        <div class="tiny muted" id="mortPaidNote" style="margin-top:4px"></div>
+        <button class="btn sec" style="margin-top:10px" onclick="openMortgage()">Update balance / value</button>
+      </div>
+    </div>
     <div class="seg" id="famToggle" style="margin:4px 0 12px">
       <button class="on" data-fam="cats" onclick="famToggle('cats')">Categories</button>
       <button data-fam="groups" onclick="famToggle('groups')">Needs / Wants / Savings</button>
@@ -390,7 +412,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 61 · statement import</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 63 · pots, mortgage &amp; import</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -491,6 +513,17 @@ canvas{max-width:100%;}
         <div class="muted tiny">Current savings</div>
         <div class="bigfig" id="savTotal">£0</div>
         <div id="savGoal" style="margin-top:12px"></div>
+      </div>
+      <div class="card" id="savPotsCard">
+        <h2 style="margin-top:2px">Savings pots</h2>
+        <p class="note">Split your savings into named pots (holiday, emergency, car…). These are your own earmarks — set them up or delete them whenever you like.</p>
+        <div id="savPotsList" style="margin-top:6px"></div>
+        <div id="savPotsSummary" class="tiny muted" style="margin-top:8px"></div>
+        <div class="row" style="margin-top:10px">
+          <div><label>Pot name</label><input id="savPotName" placeholder="e.g. Holiday"></div>
+          <div><label>Amount (£)</label><input type="number" id="savPotAmt" inputmode="decimal" placeholder="£"></div>
+        </div>
+        <button class="btn sec" style="margin-top:8px" onclick="addSavPot()">Add pot</button>
       </div>
       <div class="card">
         <h2 style="margin-top:2px">Savings goals</h2>
@@ -681,8 +714,12 @@ canvas{max-width:100%;}
       <button class="btn sec" onclick="famCopy()">Copy</button>
       <button class="btn" onclick="famShareSend()">Share…</button>
     </div>
+    <div class="row" style="margin-top:10px;align-items:center;gap:8px">
+      <label style="margin:0;white-space:nowrap">QR covers</label>
+      <select id="famQRMonths" onchange="famRenderQR()" style="width:auto"><option value="1">This month</option><option value="3" selected>Last 3 months</option><option value="6">Last 6 months</option><option value="99">Everything</option></select>
+    </div>
     <div id="famQR" style="margin-top:10px"></div>
-    <p class="tiny muted" style="text-align:center;margin-top:2px">…or let your partner scan this with their Family tab.</p>
+    <p class="tiny muted" style="text-align:center;margin-top:2px">A shorter period makes a simpler code that's easier to scan. Copy/paste always sends your full history.</p>
     <button class="btn sec" style="margin-top:8px" onclick="closeFamShare()">Close</button>
   </div>
 </div>
@@ -697,6 +734,19 @@ canvas{max-width:100%;}
       <button class="btn" onclick="famImport()">Import</button>
     </div>
     <button class="btn sec" style="margin-top:8px;width:100%" onclick="openFamScan()">📷 Scan a QR instead</button>
+  </div>
+</div>
+
+<div class="modal" id="mortgageModal">
+  <div class="sheet">
+    <h2 style="margin-top:0">Mortgage</h2>
+    <div class="field"><label>Home value (£)</label><input type="number" id="mortValIn" inputmode="decimal" placeholder="£"></div>
+    <div class="field"><label>Mortgage balance — what you owe now (£)</label><input type="number" id="mortBalIn" inputmode="decimal" placeholder="£"></div>
+    <p class="note">Payments logged under your <b>Mortgage</b> category are taken off automatically. When interest is added or you get a statement, just update the balance here — it re-baselines from today.</p>
+    <div class="row">
+      <button class="btn sec" onclick="closeMortgage()">Cancel</button>
+      <button class="btn" onclick="saveMortgage()">Save</button>
+    </div>
   </div>
 </div>
 
@@ -737,12 +787,15 @@ canvas{max-width:100%;}
   <div class="sheet">
     <h2 style="margin-top:0">Review import</h2>
     <div id="impSummary" class="sub"></div>
+    <div class="bar" style="height:10px;margin-top:8px"><span id="impProg" style="width:0%;background:var(--accent)"></span></div>
+    <div id="impProgTxt" class="tiny muted" style="margin-top:4px"></div>
+    <div id="impMatchedWrap" style="margin-top:8px"></div>
     <div id="impList" style="margin-top:12px"></div>
-    <div id="impMatchedWrap" style="margin-top:6px"></div>
     <div class="row" style="margin-top:14px">
-      <button class="btn sec" onclick="impCancel()">Cancel</button>
-      <button class="btn" onclick="impConfirm()">Add selected</button>
+      <button class="btn sec" onclick="impSkipAll()">Skip all</button>
+      <button class="btn" onclick="impAddAll()">Add all remaining</button>
     </div>
+    <button class="btn sec" style="margin-top:8px;width:100%" onclick="impCloseSave()">Close &amp; save for later</button>
   </div>
 </div>
 
@@ -2156,9 +2209,24 @@ function renderSavBalList(){
     `<div class="catrow"><div class="catrow-main"><span class="cname">${fmtDateY(h.date)}</span><span style="font-weight:700">${gbp0(h.amount)}</span><button class="btn danger" style="width:auto;padding:5px 9px;margin-left:auto" onclick="delSavBal('${h.id}')">Delete</button></div></div>`
   ).join("") : '<div class="tiny muted" style="padding:2px 0">No balance entered yet.</div>';
 }
+function savPots(){ savInit(); if(!Array.isArray(DB.savings.pots)) DB.savings.pots=[]; return DB.savings.pots; }
+function addSavPot(){ const name=document.getElementById("savPotName").value.trim(); const amt=parseFloat(document.getElementById("savPotAmt").value); if(!name){ toast("Name your pot"); return; } savPots().push({id:"pot"+Date.now()+Math.random().toString(36).slice(2,5), name, amount:isNaN(amt)?0:amt}); save(); document.getElementById("savPotName").value=""; document.getElementById("savPotAmt").value=""; renderSavings(); toast("Pot added ✓"); }
+function editSavPot(id,val){ const pt=savPots().find(x=>x.id===id); if(!pt) return; const v=parseFloat(val); pt.amount=isNaN(v)?0:v; save(); renderSavPots(); }
+function renameSavPot(id,val){ const pt=savPots().find(x=>x.id===id); if(!pt) return; const nm=(val||"").trim(); if(nm) pt.name=nm; save(); }
+function delSavPot(id){ savInit(); DB.savings.pots=savPots().filter(x=>x.id!==id); save(); renderSavings(); }
+function renderSavPots(){
+  const el=document.getElementById("savPotsList"); if(!el) return;
+  const pots=savPots();
+  el.innerHTML = pots.length ? pots.map(pt=>`<div class="catrow"><div class="catrow-main" style="gap:8px;align-items:center"><input value="${(pt.name||"").replace(/"/g,"&quot;")}" onchange="renameSavPot('${pt.id}',this.value)" style="flex:1;min-width:0;font-weight:700"><input type="number" inputmode="decimal" value="${pt.amount}" onchange="editSavPot('${pt.id}',this.value)" style="width:100px;text-align:right"><button class="btn danger" style="width:auto;padding:5px 9px" onclick="delSavPot('${pt.id}')">✕</button></div></div>`).join("") : '<div class="tiny muted" style="padding:2px 0">No pots yet — add one below.</div>';
+  const sumEl=document.getElementById("savPotsSummary"); if(!sumEl) return;
+  if(!pots.length){ sumEl.innerHTML=""; return; }
+  const alloc=pots.reduce((a,pt)=>a+(+pt.amount||0),0), total=savingsTotal(), un=total-alloc;
+  sumEl.innerHTML = `Allocated <b>${gbp0(alloc)}</b> of <b>${gbp0(total)}</b> savings · ` + (Math.abs(un)<0.5 ? '<span style="color:var(--green)">all allocated ✓</span>' : (un>0 ? `<span style="color:var(--amber)">${gbp0(un)} unallocated</span>` : `<span style="color:var(--red)">${gbp0(-un)} over your balance</span>`));
+}
 function renderSavings(){
   savInit();
   renderSavBalList();
+  renderSavPots();
   const ti=document.getElementById("savTarget"); if(ti) ti.value=(DB.savings.target==null?"":DB.savings.target);
   const total=savingsTotal();
   const tEl=document.getElementById("savTotal"); if(tEl) tEl.textContent=gbp0(total);
@@ -2607,67 +2675,77 @@ function impCatOptions(cat){
   const names=INCOME_CATS.concat(activeCats().map(c=>c.name));
   return ['<option value="">Uncategorised</option>'].concat(names.map(n=>`<option${n===cat?" selected":""}>${n}</option>`)).join("");
 }
+function impCommitRow(r){
+  const inc=!!r.income;
+  const amt=inc?Math.abs(r.amount):-Math.abs(r.amount);
+  const cat=r.cat||(inc?"Other Income":"");
+  const fp=r.key+"|"+amt.toFixed(2)+"|"+r.date;
+  DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,7)+Math.floor(Math.random()*1e4), date:r.date, desc:r.nice||r.raw||cat, amount:amt, category:cat, byId:(typeof CURRENT!=="undefined"&&CURRENT)?CURRENT.id:null, byName:(typeof curName==="function"?curName():""), src:"import", imp:fp});
+  if(cat && !inc) impRememberRule(r.raw, cat);
+}
 function impPreview(text){
   const msg=document.getElementById("impMsg"); if(msg) msg.textContent="";
   const res=impBuildRows(text);
   if(!res.ok){ if(msg) msg.textContent="Couldn't detect the columns. Header found: "+((res.header||[]).join(" | ")||"(none)")+". The file needs a Date, a Description and an amount (or Paid out / Paid in) column."; return; }
   if(!res.rows.length){ if(msg){ const dl=res.delim==="\t"?"tab":(res.delim||","); msg.textContent="No readable transactions. Detected separator: "+dl+". Columns: "+((res.header||[]).join(" | ")||"(none)")+". First row: "+((res.sample||[]).join(" | ")||"(none)")+". If this looks wrong, send me these two lines and I'll tune it."; } return; }
-  const rec=impReconcile(res.rows); IMP=rec;
-  const nAdd=rec.toAdd.length, nMatch=rec.matched.length;
-  const nNew=rec.toAdd.filter(x=>x.add).length, nPoss=nAdd-nNew;
-  document.getElementById("impSummary").innerHTML="Found <b>"+(nAdd+nMatch)+"</b> transaction"+((nAdd+nMatch)===1?"":"s")+" · <b>"+nMatch+"</b> duplicate"+(nMatch===1?"":"s")+" skipped"+(nPoss?" · <b>"+nPoss+"</b> possible duplicate"+(nPoss===1?"":"s")+" (unticked)":"")+" · <b>"+nNew+"</b> new to add."+(res.skipped?" · <b>"+res.skipped+"</b> unreadable row"+(res.skipped===1?"":"s")+" skipped":"")+(nAdd?' <button class="btn sec" style="margin-top:8px;width:auto;padding:5px 12px;font-size:13px" onclick="impAllSpending()">Set all to spending</button>':"");
-  document.getElementById("impList").innerHTML = nAdd ? rec.toAdd.map((r,i)=>`
-    <div class="card" style="padding:10px;margin-bottom:8px">
-      <label style="display:flex;align-items:center;gap:8px;margin:0">
-        <input type="checkbox" id="impChk${i}" ${r.add?"checked":""} style="width:auto">
+  const rec=impReconcile(res.rows);
+  (rec.matched||[]).forEach(m=>{ if(m.learnCat && INCOME_CATS.indexOf(m.learnCat)<0) impRememberRule(m.raw, m.learnCat); });   // learn from confident duplicates immediately
+  const rows=rec.toAdd.map((r,i)=>({rid:"r"+i, date:r.date, amount:r.amount, income:!!r.income, key:r.key, nice:r.nice, raw:r.raw, cat:r.cat||"", dupOf:r.dupOf||"", learnCat:r.learnCat||""}));
+  DB.impQueue={ rows, total:rows.length, dupCount:(rec.matched?rec.matched.length:0), skipped:res.skipped||0, started:todayISO() };
+  save();
+  if(!rows.length){ DB.impQueue=null; save(); impUpdateResume(); toast((rec.matched&&rec.matched.length)?("Everything already logged — "+rec.matched.length+" duplicate"+(rec.matched.length===1?"":"s")):"No new transactions found"); return; }
+  impOpenQueue();
+}
+function impQ(){ return (DB.impQueue&&Array.isArray(DB.impQueue.rows))?DB.impQueue:null; }
+function impRowsFind(rid){ const q=impQ(); return q?q.rows.find(r=>r.rid===rid):null; }
+function impOpenQueue(){ const m=document.getElementById("impModal"); if(m) m.classList.add("on"); impRenderQueue(); }
+function impResumeOpen(){ impOpenQueue(); }
+function impRenderQueue(){
+  const q=impQ();
+  const listEl=document.getElementById("impList"), sumEl=document.getElementById("impSummary"), progEl=document.getElementById("impProg"), ptEl=document.getElementById("impProgTxt"), mw=document.getElementById("impMatchedWrap");
+  if(mw) mw.innerHTML="";
+  if(!q || !q.rows.length){
+    if(sumEl) sumEl.innerHTML="All done 🎉";
+    if(progEl) progEl.style.width="100%";
+    if(ptEl) ptEl.textContent="";
+    if(listEl) listEl.innerHTML='<p class="sub">Nothing left to review.</p>';
+    DB.impQueue=null; save(); impUpdateResume();
+    return;
+  }
+  const done=q.total-q.rows.length, pct=q.total?Math.round(done/q.total*100):0;
+  if(progEl) progEl.style.width=pct+"%";
+  if(ptEl) ptEl.textContent=done+" of "+q.total+" reviewed"+(q.dupCount?(" · "+q.dupCount+" duplicate"+(q.dupCount===1?"":"s")+" skipped"):"")+(q.skipped?(" · "+q.skipped+" unreadable skipped"):"");
+  if(sumEl) sumEl.innerHTML="<b>"+q.rows.length+"</b> transaction"+(q.rows.length===1?"":"s")+" left to review — add or skip each, or come back later.";
+  if(listEl) listEl.innerHTML=q.rows.map(r=>`
+    <div class="card" style="padding:10px;margin-bottom:8px" id="improw_${r.rid}">
+      <div style="display:flex;align-items:center;gap:8px">
         <span style="flex:1;min-width:0;overflow:hidden">
           <span style="font-weight:700">${r.nice||r.raw||"(no description)"}</span>
           <span class="tiny muted"> · ${fmtDateY(r.date)}</span>
           ${r.dupOf?`<span class="tiny" style="color:var(--amber);font-weight:700"> · possible duplicate of ${r.dupOf}</span>`:''}
         </span>
-        <span id="impAmt${i}" style="font-weight:800;color:${r.income?'var(--green)':'var(--txt)'}">${gbp(r.amount)}</span>
-      </label>
-      <div class="row" style="margin-top:8px;gap:8px">
-        <select id="impDir${i}" onchange="impDirChange(${i})"><option value="out"${!r.income?" selected":""}>Spending</option><option value="in"${r.income?" selected":""}>Income</option></select>
-        <select id="impCat${i}">${impCatOptions(r.cat||(r.income?"Other Income":""))}</select>
+        <span id="impAmt_${r.rid}" style="font-weight:800;color:${r.income?'var(--green)':'var(--txt)'}">${gbp(r.income?Math.abs(r.amount):-Math.abs(r.amount))}</span>
       </div>
-    </div>`).join("") : '<p class="sub">Nothing new to add — everything in this statement is already in your log.</p>';
-  document.getElementById("impMatchedWrap").innerHTML = nMatch ? `<details><summary class="tiny muted" style="cursor:pointer;padding:4px 0">Already in your log (${nMatch}) — tap to view</summary><div style="margin-top:6px">${rec.matched.map(m=>`<div class="tiny muted" style="display:flex;justify-content:space-between;gap:8px;padding:3px 0"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${impNice(m.raw)||m.raw} · ${fmtDateY(m.date)}</span><span>${gbp(m.amount)}</span></div>`).join("")}</div></details>` : "";
-  document.getElementById("impModal").classList.add("on");
+      <div class="row" style="margin-top:8px;gap:8px">
+        <select id="impDir_${r.rid}" onchange="impSetDir('${r.rid}',this.value)"><option value="out"${!r.income?" selected":""}>Spending</option><option value="in"${r.income?" selected":""}>Income</option></select>
+        <select id="impCat_${r.rid}" onchange="impSetCat('${r.rid}',this.value)">${impCatOptions(r.cat||(r.income?"Other Income":""))}</select>
+      </div>
+      <div class="row" style="margin-top:8px;gap:8px">
+        <button class="btn sec" onclick="impSkipRow('${r.rid}')">Skip</button>
+        <button class="btn" onclick="impAddRow('${r.rid}')">Add</button>
+      </div>
+    </div>`).join("");
 }
-function impDirChange(i){
-  if(!IMP||!IMP.toAdd||!IMP.toAdd[i]) return;
-  const r=IMP.toAdd[i]; const de=document.getElementById("impDir"+i); const inc=de?de.value==="in":r.income;
-  const amt=inc?Math.abs(r.amount):-Math.abs(r.amount);
-  const as=document.getElementById("impAmt"+i); if(as){ as.textContent=gbp(amt); as.style.color=inc?"var(--green)":"var(--txt)"; }
-  const cs=document.getElementById("impCat"+i); if(cs){ if(inc) cs.value="Other Income"; else if(r.cat) cs.value=r.cat; }
-}
-function impAllSpending(){ if(!IMP||!IMP.toAdd) return; IMP.toAdd.forEach((r,i)=>{ const d=document.getElementById("impDir"+i); if(d){ d.value="out"; impDirChange(i); } }); }
-function impConfirm(){
-  if(!IMP||!IMP.toAdd){ impCancel(); return; }
-  let n=0;
-  let learned=0;
-  IMP.toAdd.forEach((r,i)=>{
-    const chk=document.getElementById("impChk"+i);
-    if(!chk||!chk.checked){
-      // accepted as a duplicate (left unticked) -> still learn the merchant => category mapping
-      if(r.learnCat && INCOME_CATS.indexOf(r.learnCat)<0){ impRememberRule(r.raw, r.learnCat); learned++; }
-      return;
-    }
-    const de=document.getElementById("impDir"+i); const inc=de?de.value==="in":r.income;
-    const amt=inc?Math.abs(r.amount):-Math.abs(r.amount);
-    const sel=document.getElementById("impCat"+i); const cat=(sel?sel.value:"")||(inc?"Other Income":"");
-    const fp=r.key+"|"+amt.toFixed(2)+"|"+r.date;
-    DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,7)+i, date:r.date, desc:r.nice||r.raw||cat, amount:amt, category:cat, byId:(typeof CURRENT!=="undefined"&&CURRENT)?CURRENT.id:null, byName:(typeof curName==="function"?curName():""), src:"import", imp:fp});
-    if(cat && !inc){ impRememberRule(r.raw, cat); learned++; }
-    n++;
-  });
-  // learn from confident duplicates that were auto-skipped
-  (IMP.matched||[]).forEach(m=>{ if(m.learnCat && INCOME_CATS.indexOf(m.learnCat)<0){ impRememberRule(m.raw, m.learnCat); learned++; } });
-  const dup=(IMP&&IMP.matched)?IMP.matched.length:0;
-  save(); impCancel(); toast(n?("Added "+n+" new"+(dup?(" · "+dup+" duplicate"+(dup===1?"":"s")+" skipped"):"")+" ✓"):"Nothing selected"); refreshAll();
-}
-function impCancel(){ const m=document.getElementById("impModal"); if(m) m.classList.remove("on"); IMP=null; }
+function impSetDir(rid,val){ const r=impRowsFind(rid); if(!r) return; r.income=(val==="in"); if(r.income && !r.cat) r.cat="Other Income"; const a=document.getElementById("impAmt_"+rid); if(a){ a.textContent=gbp(r.income?Math.abs(r.amount):-Math.abs(r.amount)); a.style.color=r.income?"var(--green)":"var(--txt)"; } const cs=document.getElementById("impCat_"+rid); if(cs && r.income) cs.value="Other Income"; save(); }
+function impSetCat(rid,val){ const r=impRowsFind(rid); if(!r) return; r.cat=val; save(); }
+function impRemoveRow(rid){ const q=impQ(); if(q){ q.rows=q.rows.filter(r=>r.rid!==rid); save(); } }
+function impAddRow(rid){ const r=impRowsFind(rid); if(!r) return; impCommitRow(r); impRemoveRow(rid); impRenderQueue(); impUpdateResume(); refreshAll(); }
+function impSkipRow(rid){ const r=impRowsFind(rid); if(!r) return; if(r.learnCat && INCOME_CATS.indexOf(r.learnCat)<0) impRememberRule(r.raw, r.learnCat); impRemoveRow(rid); impRenderQueue(); impUpdateResume(); }
+function impAddAll(){ const q=impQ(); if(!q) return; q.rows.slice().forEach(r=>impCommitRow(r)); const n=q.rows.length; q.rows=[]; save(); impRenderQueue(); impUpdateResume(); refreshAll(); toast("Added "+n+" ✓"); }
+function impSkipAll(){ const q=impQ(); if(!q) return; q.rows.forEach(r=>{ if(r.learnCat && INCOME_CATS.indexOf(r.learnCat)<0) impRememberRule(r.raw, r.learnCat); }); q.rows=[]; save(); impRenderQueue(); impUpdateResume(); }
+function impCloseSave(){ const m=document.getElementById("impModal"); if(m) m.classList.remove("on"); impUpdateResume(); }
+function impDiscardQueue(){ DB.impQueue=null; save(); impUpdateResume(); const m=document.getElementById("impModal"); if(m) m.classList.remove("on"); toast("Import discarded"); }
+function impUpdateResume(){ const el=document.getElementById("impResume"); if(!el) return; const q=impQ(); if(q && q.rows.length){ el.style.display="block"; el.innerHTML=`<div class="card" style="padding:10px;background:var(--card2)"><div class="tiny" style="font-weight:700">Import in progress</div><div class="tiny muted" style="margin:2px 0 8px">${q.rows.length} of ${q.total} transaction${q.total===1?"":"s"} still to review.</div><button class="btn sec" style="width:auto;padding:6px 12px" onclick="impResumeOpen()">Resume import</button> <button class="btn danger" style="width:auto;padding:6px 12px" onclick="impDiscardQueue()">Discard</button></div>`; } else { el.style.display="none"; el.innerHTML=""; } }
 /* ============================================================= end STATEMENT IMPORT */
 function noSpendWeekends(){
   let firstDate=null; (DB.txns||[]).forEach(t=>{ if(firstDate===null||t.date<firstDate) firstDate=t.date; });
@@ -2776,7 +2854,7 @@ function renderInvest(){
   renderInvPortList();
   renderInvProjection();
 }
-function refreshAll(){ renderDash(); renderRec(); updPendBadge(); updOrphanBadge(); if(document.getElementById("page-tx").classList.contains("on")) renderTx(); try{ checkLevelUp(); }catch(e){} }
+function refreshAll(){ renderDash(); renderRec(); updPendBadge(); updOrphanBadge(); if(document.getElementById("page-tx").classList.contains("on")) renderTx(); try{ checkLevelUp(); }catch(e){} try{ impUpdateResume(); }catch(e){} }
 function updOrphanBadge(){ const n=DB.txns?DB.txns.filter(isOrphan).length:0; const b=document.getElementById("orphanBadge"); if(b){ b.style.display=n>0?"flex":"none"; b.textContent=n; } }
 function updPendBadge(){
   const n=pendingItems().length;
@@ -2819,7 +2897,7 @@ function famSelfMonths(){
   }
   return months;
 }
-function famSelfSummary(){ familyInit(); return {v:2,name:familyMyName(),date:todayISO(),months:famSelfMonths()}; }
+function famSelfSummary(){ familyInit(); return {v:2,name:familyMyName(),date:todayISO(),savBal:fam_r2(savingsTotal()),months:famSelfMonths()}; }
 function famContributors(){ familyInit(); return [famSelfSummary()].concat(DB.family.partners); }
 function encodeSummary(sum){ try{ return "MTF2."+btoa(unescape(encodeURIComponent(JSON.stringify(sum)))); }catch(e){ return ""; } }
 function decodeSummary(code){ try{ code=(code||"").trim(); const m=code.match(/MTF2\.([A-Za-z0-9+/=]+)/); const b64=m?m[1]:code.replace(/\s+/g,""); return JSON.parse(decodeURIComponent(escape(atob(b64)))); }catch(e){ return null; } }
@@ -2911,6 +2989,20 @@ function famDrawChart(rows,totalSpend){
   famChart=new Chart(ctx,{type:"doughnut",data:{labels:rows.map(r=>r.label),datasets:[{data:rows.map(r=>Math.round(r.total)),backgroundColor:rows.map(r=>r.col),borderColor:"#1e293b",borderWidth:2}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>" "+c.label+": £"+c.parsed.toLocaleString()+" ("+pct(rows[c.dataIndex])+"%)"}}},cutout:"62%"}});
   leg.innerHTML=rows.map(r=>`<div><span class="dot" style="background:${r.col}"></span>${r.label} ${gbp(r.total)} · ${pct(r)}%</div>`).join("");
 }
+function mortgageInit(){ if(!DB.mortgage || typeof DB.mortgage!=="object") DB.mortgage={value:0,balance:null,since:null}; }
+function mortgagePaidSince(since){
+  const cut=since?parse(since):null; let paid=0;
+  (DB.txns||[]).forEach(t=>{ if(!t.category || t.category.toLowerCase()!=="mortgage") return; if(t.amount>=0) return; if(cut && parse(t.date)<=cut) return; paid+=-t.amount; });
+  familyInit();
+  const anchorK=cut?(cut.getFullYear()*12+cut.getMonth()):-Infinity;
+  (DB.family.partners||[]).forEach(sm=>{ const months=sm.months||{}; Object.keys(months).forEach(mk=>{ const pp=mk.split("-"); const k=(+pp[0])*12+((+pp[1])-1); if(k<=anchorK) return; (months[mk].c||[]).forEach(row=>{ if((row[0]||"").toLowerCase()==="mortgage"){ const net=+row[2]||0; if(net>0) paid+=net; } }); }); });
+  return paid;
+}
+function mortgageOwed(){ mortgageInit(); if(DB.mortgage.balance==null) return null; return Math.max(0,(+DB.mortgage.balance||0)-mortgagePaidSince(DB.mortgage.since)); }
+function familySavingsTotal(){ let t=savingsTotal(); familyInit(); (DB.family.partners||[]).forEach(sm=>{ t+=(+sm.savBal||0); }); return t; }
+function openMortgage(){ mortgageInit(); const o=mortgageOwed(); document.getElementById("mortValIn").value=DB.mortgage.value||""; document.getElementById("mortBalIn").value=(o!=null?o:(DB.mortgage.balance!=null?DB.mortgage.balance:"")); document.getElementById("mortgageModal").classList.add("on"); }
+function closeMortgage(){ document.getElementById("mortgageModal").classList.remove("on"); }
+function saveMortgage(){ mortgageInit(); const v=parseFloat(document.getElementById("mortValIn").value); const b=parseFloat(document.getElementById("mortBalIn").value); DB.mortgage.value=isNaN(v)?0:v; DB.mortgage.balance=isNaN(b)?null:b; DB.mortgage.since=todayISO(); save(); closeMortgage(); renderFamily(); toast("Mortgage updated ✓"); }
 function renderFamily(){
   familyInit();
   const nameI=document.getElementById("famName"); if(nameI && document.activeElement!==nameI) nameI.value=DB.family.myName||curName();
@@ -2926,6 +3018,24 @@ function renderFamily(){
   document.getElementById("famSpend").textContent=gbp(A.spend);
   const netEl=document.getElementById("famNet"); netEl.textContent=gbp(A.net); netEl.className="val "+(A.net>=0?"pos":"neg");
   document.getElementById("famSave").textContent=gbp(A.saved);
+  // Total family savings (actual balances — moves up and down)
+  const _fsT=document.getElementById("famSavTotal"); if(_fsT) _fsT.textContent=gbp(familySavingsTotal());
+  const _fsB=document.getElementById("famSavBreak");
+  if(_fsB){ const parts=["You: "+gbp(savingsTotal())]; let miss=false; (DB.family.partners||[]).forEach(sm=>{ if(sm.savBal!=null) parts.push((sm.name||"Partner")+": "+gbp(+sm.savBal||0)); else miss=true; }); _fsB.innerHTML=parts.join(" · ")+(miss?' · <span style="color:var(--amber)">ask partners to re-share (Build 62+) to include their savings</span>':""); }
+  // Mortgage / equity
+  mortgageInit();
+  const _owed=mortgageOwed(), _val=+DB.mortgage.value||0;
+  const _none=document.getElementById("mortNone"), _have=document.getElementById("mortHave");
+  if(_owed==null){ if(_none)_none.style.display="block"; if(_have)_have.style.display="none"; }
+  else{
+    if(_none)_none.style.display="none"; if(_have)_have.style.display="block";
+    if(_val>0){ const eq=Math.max(0,_val-_owed), pct=Math.max(0,Math.min(100,eq/_val*100)); document.getElementById("mortPct").textContent=Math.round(pct)+"%"; document.getElementById("mortBar").style.width=pct+"%"; }
+    else { document.getElementById("mortPct").textContent="—"; document.getElementById("mortBar").style.width="0%"; }
+    document.getElementById("mortOwed").textContent=gbp(_owed);
+    document.getElementById("mortValue").textContent=_val>0?gbp(_val):"— add value";
+    const _paid=mortgagePaidSince(DB.mortgage.since);
+    document.getElementById("mortPaidNote").textContent=_paid>0?(gbp(_paid)+" paid off since "+fmtDateY(DB.mortgage.since)):"";
+  }
   const gc=document.getElementById("famGrade"), score=familyGradeScore(A.g);
   if(gc){ if(score==null){ gc.style.display="none"; } else {
     gc.style.display="block";
@@ -2974,6 +3084,9 @@ function famRenderQR(){
   // the data, drop the oldest month and try again.
   const MAXVER=13;
   let sum=famSelfSummary(), img=null, note="", guard=0;
+  const sel=document.getElementById("famQRMonths"); const nMonths=sel?(+sel.value||3):3;
+  const allKeys=Object.keys(sum.months||{}).sort();
+  if(nMonths<allKeys.length){ const keep=allKeys.slice(-nMonths), m2={}; keep.forEach(k=>m2[k]=sum.months[k]); sum.months=m2; if(nMonths<=6) note="Covers your most recent "+nMonths+" month"+(nMonths===1?"":"s")+" — Copy/Paste for full history."; }
   while(guard++<48){
     const code=encodeSummary(sum); let done=false;
     for(let v=4; v<=MAXVER; v++){
