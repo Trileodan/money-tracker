@@ -412,7 +412,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 65 · scan from photo</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 66 · every 4 weeks</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -932,12 +932,13 @@ function nextColor(){ const used=allCats().map(c=>c.color); return PALETTE.find(
 const FREQS = [
   {key:"weekly",     label:"Weekly"},
   {key:"fortnightly",label:"Every 2 weeks (bi-weekly)"},
+  {key:"fourweekly", label:"Every 4 weeks"},
   {key:"monthly",    label:"Monthly — same date each month"},
   {key:"monthly30",  label:"Monthly — every 30 days"},
   {key:"quarterly",  label:"Every 3 months"},
   {key:"annually",   label:"Annually"}
 ];
-const FREQ_LABEL = {weekly:"Weekly",fortnightly:"Every 2 weeks",monthly:"Monthly (same date)",monthly30:"Monthly (30 days)",quarterly:"Every 3 months",annually:"Annually"};
+const FREQ_LABEL = {weekly:"Weekly",fortnightly:"Every 2 weeks",fourweekly:"Every 4 weeks",monthly:"Monthly (same date)",monthly30:"Monthly (30 days)",quarterly:"Every 3 months",annually:"Annually"};
 // category colours and £ budgets now live per-category in DB.categories (see helpers above)
 
 const SEED = [];
@@ -1073,8 +1074,8 @@ function occurrences(r, until){
   const out=[];
   const anchor = parse((r.anchor||todayISO()).slice(0,10));
   let guard=0;
-  if(r.freq==="weekly"||r.freq==="fortnightly"||r.freq==="monthly30"){
-    const step = r.freq==="weekly"?7 : r.freq==="fortnightly"?14 : 30;
+  if(r.freq==="weekly"||r.freq==="fortnightly"||r.freq==="fourweekly"||r.freq==="monthly30"){
+    const step = r.freq==="weekly"?7 : r.freq==="fortnightly"?14 : r.freq==="fourweekly"?28 : 30;
     let d=new Date(anchor);
     while(d<=until && guard++<2000){ out.push(new Date(d)); d.setDate(d.getDate()+step); }
   } else {                                             // calendar month / quarter / year
