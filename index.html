@@ -412,7 +412,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 66 · every 4 weeks</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 67 · pots auto-fill</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -516,7 +516,7 @@ canvas{max-width:100%;}
       </div>
       <div class="card" id="savPotsCard">
         <h2 style="margin-top:2px">Savings pots</h2>
-        <p class="note">Split your savings into named pots (holiday, emergency, car…). These are your own earmarks — set them up or delete them whenever you like.</p>
+        <p class="note">Split your savings into named pots (holiday, emergency, car…). Give a pot a starting amount, then whenever you log a <b>Savings</b> transaction and name it after a pot (e.g. description “Holiday”), that amount is added to the pot automatically — and still counts toward your overall savings.</p>
         <div id="savPotsList" style="margin-top:6px"></div>
         <div id="savPotsSummary" class="tiny muted" style="margin-top:8px"></div>
         <div class="row" style="margin-top:10px">
@@ -2219,13 +2219,30 @@ function addSavPot(){ const name=document.getElementById("savPotName").value.tri
 function editSavPot(id,val){ const pt=savPots().find(x=>x.id===id); if(!pt) return; const v=parseFloat(val); pt.amount=isNaN(v)?0:v; save(); renderSavPots(); }
 function renameSavPot(id,val){ const pt=savPots().find(x=>x.id===id); if(!pt) return; const nm=(val||"").trim(); if(nm) pt.name=nm; save(); }
 function delSavPot(id){ savInit(); DB.savings.pots=savPots().filter(x=>x.id!==id); save(); renderSavings(); }
+function potContrib(pt){
+  const nm=(pt&&pt.name||"").trim().toLowerCase(); if(!nm) return 0;
+  let t=0;
+  (DB.txns||[]).forEach(x=>{ if(!x.category || x.category.toLowerCase()!=="savings") return; if((x.desc||"").trim().toLowerCase()!==nm) return; t+=-(+x.amount||0); });
+  return t;   // money paid into savings under this pot's name
+}
+function potBalance(pt){ return (+pt.amount||0)+potContrib(pt); }
 function renderSavPots(){
   const el=document.getElementById("savPotsList"); if(!el) return;
   const pots=savPots();
-  el.innerHTML = pots.length ? pots.map(pt=>`<div class="catrow"><div class="catrow-main" style="gap:8px;align-items:center"><input value="${(pt.name||"").replace(/"/g,"&quot;")}" onchange="renameSavPot('${pt.id}',this.value)" style="flex:1;min-width:0;font-weight:700"><input type="number" inputmode="decimal" value="${pt.amount}" onchange="editSavPot('${pt.id}',this.value)" style="width:100px;text-align:right"><button class="btn danger" style="width:auto;padding:5px 9px" onclick="delSavPot('${pt.id}')">✕</button></div></div>`).join("") : '<div class="tiny muted" style="padding:2px 0">No pots yet — add one below.</div>';
+  el.innerHTML = pots.length ? pots.map(pt=>{
+    const auto=potContrib(pt), bal=(+pt.amount||0)+auto, nm=(pt.name||"").replace(/"/g,"&quot;");
+    return `<div class="catrow" style="display:block">
+      <div class="catrow-main" style="gap:8px;align-items:center">
+        <input value="${nm}" onchange="renameSavPot('${pt.id}',this.value)" style="flex:1;min-width:0;font-weight:700">
+        <span style="font-weight:800;white-space:nowrap">${gbp0(bal)}</span>
+        <button class="btn danger" style="width:auto;padding:5px 9px" onclick="delSavPot('${pt.id}')">✕</button>
+      </div>
+      <div class="tiny muted" style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">Starting <input type="number" inputmode="decimal" value="${pt.amount}" onchange="editSavPot('${pt.id}',this.value)" style="width:90px;text-align:right">${auto>0?(" + "+gbp0(auto)+" saved by name"):""}</div>
+    </div>`;
+  }).join("") : '<div class="tiny muted" style="padding:2px 0">No pots yet — add one below.</div>';
   const sumEl=document.getElementById("savPotsSummary"); if(!sumEl) return;
   if(!pots.length){ sumEl.innerHTML=""; return; }
-  const alloc=pots.reduce((a,pt)=>a+(+pt.amount||0),0), total=savingsTotal(), un=total-alloc;
+  const alloc=pots.reduce((a,pt)=>a+potBalance(pt),0), total=savingsTotal(), un=total-alloc;
   sumEl.innerHTML = `Allocated <b>${gbp0(alloc)}</b> of <b>${gbp0(total)}</b> savings · ` + (Math.abs(un)<0.5 ? '<span style="color:var(--green)">all allocated ✓</span>' : (un>0 ? `<span style="color:var(--amber)">${gbp0(un)} unallocated</span>` : `<span style="color:var(--red)">${gbp0(-un)} over your balance</span>`));
 }
 function renderSavings(){
