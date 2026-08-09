@@ -422,18 +422,23 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 71 · category boxes</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 73 · Goals tab &amp; grade breakdown</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
-        <p class="note">Set your monthly take-home, dated from when it started. Add a new dated figure whenever you get a pay rise or cut — earlier months keep the figure that applied at the time.</p>
+        <p class="note">Set your take-home pay, how often you're paid, and when. Add a new dated figure whenever your pay changes — earlier months keep the figure that applied then.</p>
+        <div class="field"><label>How often you're paid</label>
+          <select id="payFreq" onchange="changePayFreq(this.value)"><option value="monthly">Monthly</option><option value="fourweekly">Every 4 weeks</option><option value="fortnightly">Every 2 weeks</option><option value="weekly">Weekly</option></select>
+        </div>
+        <div class="field" id="payDayWrap"><label>Payday (day of the month)</label><input type="number" id="payDayIn" min="1" max="28" inputmode="numeric" onchange="savePayDay()" style="max-width:120px"></div>
+        <div class="field" id="payAnchorWrap" style="display:none"><label>A recent payday (a date you were last paid)</label><input type="date" id="payAnchorIn" onchange="savePayAnchor()"></div>
         <div id="incomeList" style="margin-top:6px"></div>
         <div style="margin-top:12px">
-          <label>Set income from a month</label>
+          <label>Add / update take-home <span id="payPerLbl">per month</span></label>
           <div class="row">
             <div><select id="incMonth"></select></div>
             <div><select id="incYear"></select></div>
-            <div><input type="number" id="incAmount" inputmode="decimal" placeholder="£ amount"></div>
+            <div><input type="number" id="incAmount" inputmode="decimal" placeholder="£"></div>
           </div>
           <button class="btn sec" style="margin-top:8px" onclick="addIncome()">Save income figure</button>
         </div>
@@ -443,8 +448,7 @@ canvas{max-width:100%;}
     <div class="acc" id="accBank">
       <div class="acc-head" onclick="toggleAcc('accBank')"><span>Bank account &amp; balance</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
-        <p class="note">Track your live current-account balance. Set your balance now and the app keeps it up to date from your income schedule and everything you log. If it ever drifts from your real balance, just set it again.</p>
-        <div class="field"><label>Payday (day of month your wage lands)</label><input type="number" id="bankPayDay" min="1" max="28" inputmode="numeric" onchange="saveBankPayDay()" style="max-width:120px"></div>
+        <p class="note">Track your live current-account balance. Set your balance now and the app keeps it up to date from your pay schedule (set under “Your monthly income”) and everything you log. If it ever drifts from your real balance, just set it again.</p>
         <div id="bankBalList" style="margin-top:10px"></div>
         <div class="row" style="margin-top:10px">
           <div><label>Date</label><input type="date" id="bankBalDate"></div>
@@ -526,9 +530,8 @@ canvas{max-width:100%;}
     <h1>Goals</h1>
     <div class="seg" id="goalsSeg" style="margin-bottom:12px">
       <button class="on" data-gsub="savings" onclick="goalsSub('savings')">Savings</button>
-      <button data-gsub="invest" onclick="goalsSub('invest')">Invest</button>
-      <button data-gsub="objectives" onclick="goalsSub('objectives')">Objectives</button>
-      <button data-gsub="streaks" onclick="goalsSub('streaks')">Streaks</button>
+      <button data-gsub="invest" onclick="goalsSub('invest')">Investments</button>
+      <button data-gsub="streaks" onclick="goalsSub('streaks')">Goals</button>
     </div>
 
     <div id="gsub-savings">
@@ -631,23 +634,6 @@ canvas{max-width:100%;}
       </div>
     </div>
 
-    <div id="gsub-objectives" style="display:none">
-      <div class="card">
-        <h2 style="margin-top:2px">Your objectives</h2>
-        <div id="goalsList"></div>
-      </div>
-      <div class="card">
-        <h2 style="margin-top:2px">New objective</h2>
-        <p class="note">For example: spend under £80 by 5 August. Counts your variable spending; fixed bills and savings don't count.</p>
-        <div class="field"><label>Spend under (£)</label><input type="number" id="objAmt" inputmode="decimal" placeholder="£"></div>
-        <div class="row">
-          <div><label>From</label><input type="date" id="objFrom"></div>
-          <div><label>By</label><input type="date" id="objBy"></div>
-        </div>
-        <button class="btn" style="margin-top:10px" onclick="addObjective()">Set objective</button>
-      </div>
-    </div>
-
     <div id="gsub-streaks" style="display:none">
       <div class="card" id="xpCard">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
@@ -663,7 +649,7 @@ canvas{max-width:100%;}
       </div>
       <div class="card">
         <h2 style="margin-top:2px">Last 12 months</h2>
-        <p class="note">Your monthly grade for each of the past 12 months.</p>
+        <p class="note">Your monthly grade for each of the past 12 months. Tap a month to see what made up the score.</p>
         <div id="gradeGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px"></div>
       </div>
       <div class="card">
@@ -671,6 +657,20 @@ canvas{max-width:100%;}
         <p class="note">Track habits like "no takeaways" or "add to savings weekly". Each box shows your current run — tap it for best-ever, last broken, edit or delete.</p>
         <div id="streakList" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px"></div>
         <button class="btn sec" style="margin-top:12px" onclick="openStreakModal()">New streak</button>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:2px">Your objectives</h2>
+        <div id="goalsList"></div>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:2px">New objective</h2>
+        <p class="note">For example: spend under £80 by 5 August. Counts your variable spending; fixed bills and savings don't count.</p>
+        <div class="field"><label>Spend under (£)</label><input type="number" id="objAmt" inputmode="decimal" placeholder="£"></div>
+        <div class="row">
+          <div><label>From</label><input type="date" id="objFrom"></div>
+          <div><label>By</label><input type="date" id="objBy"></div>
+        </div>
+        <button class="btn" style="margin-top:10px" onclick="addObjective()">Set objective</button>
       </div>
     </div>
   </div>
@@ -775,6 +775,14 @@ canvas{max-width:100%;}
       <button class="btn sec" onclick="closeMortgage()">Cancel</button>
       <button class="btn" onclick="saveMortgage()">Save</button>
     </div>
+  </div>
+</div>
+
+<div class="modal" id="gradeInfoModal">
+  <div class="sheet">
+    <h2 style="margin-top:0" id="gradeInfoTitle">Month grade</h2>
+    <div id="gradeInfoBody"></div>
+    <button class="btn sec" style="margin-top:14px" onclick="closeGradeInfo()">Close</button>
   </div>
 </div>
 
@@ -926,12 +934,12 @@ function isFloorName(n){ const c=catByName(n); return !!c && c.group==="Savings"
 function isFlex(c){ if(!c || c.group==="Savings") return false; return c.flex==null ? (c.group==="Wants") : !!c.flex; }
 // dated monthly take-home history: pick the figure effective for a given month
 function incomeHist(){ return (DB.incomeHistory||[]).slice().sort((a,b)=>a.date<b.date?-1:1); }
-function incomeForMonth(y,m){
-  const key=y*12+m; let amt=null;
-  incomeHist().forEach(h=>{ const pp=h.date.split("-"); const k=(+pp[0])*12+((+pp[1])-1); if(k<=key) amt=(+h.amount||0); });
-  if(amt===null){ const f=incomeHist()[0]; amt=f?(+f.amount||0):0; }   // months before the first figure use the earliest
-  return amt;
-}
+const PAY_PPY={monthly:12,fourweekly:13,fortnightly:26,weekly:52};
+function payFreqDays(f){ return f==="weekly"?7:f==="fortnightly"?14:f==="fourweekly"?28:0; }
+function payInit(){ if(!DB.pay||typeof DB.pay!=="object") DB.pay={}; if(!PAY_PPY[DB.pay.freq]) DB.pay.freq="monthly"; if(!(DB.pay.payDay>=1&&DB.pay.payDay<=28)) DB.pay.payDay=(DB.bank&&DB.bank.payDay)||25; if(DB.pay.anchor===undefined) DB.pay.anchor=null; }
+function payLabel(f){ return f==="fourweekly"?"per 4 weeks":f==="fortnightly"?"per fortnight":f==="weekly"?"per week":"per month"; }
+function payAmountForMonth(y,m){ const key=y*12+m; let amt=null; incomeHist().forEach(h=>{ const pp=h.date.split("-"); const k=(+pp[0])*12+((+pp[1])-1); if(k<=key) amt=(+h.amount||0); }); if(amt===null){ const f=incomeHist()[0]; amt=f?(+f.amount||0):0; } return amt; }
+function incomeForMonth(y,m){ payInit(); return payAmountForMonth(y,m)*(PAY_PPY[DB.pay.freq]||12)/12; }   // per-pay -> monthly equivalent (budgets/grades)
 function incomeForRange(fy,fm,ty,tm){ let s=0,y=fy,m=fm,g=0; while(y*12+m<=ty*12+tm && g++<480){ s+=incomeForMonth(y,m); m++; if(m>11){m=0;y++;} } return s; }
 function currentMonthlyIncome(){ const n=new Date(); return incomeForMonth(n.getFullYear(), n.getMonth()); }
 function isOrphan(t){ return !!t.category && INCOME_CATS.indexOf(t.category)<0 && !catByName(t.category); }
@@ -1369,15 +1377,20 @@ function bankInit(){ if(!DB.bank||typeof DB.bank!=="object") DB.bank={balances:[
 function bankBalances(){ bankInit(); return DB.bank.balances.slice().sort((a,b)=>a.date<b.date?-1:1); }
 function bankMarker(){ const b=bankBalances(); return b.length?b[b.length-1]:null; }
 function salaryDepositsSince(dateStr){
+  payInit();
   const cut=dateStr?parse(dateStr):null; const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-  bankInit(); const pd=DB.bank.payDay||25; let sum=0, guard=0;
-  let d = cut ? new Date(cut.getFullYear(),cut.getMonth(),1) : new Date(today.getFullYear(),today.getMonth(),1);
-  for(; d<=today && guard++<600; d.setMonth(d.getMonth()+1)){
-    const y=d.getFullYear(), m=d.getMonth(), dim=new Date(y,m+1,0).getDate();
-    const payDate=new Date(y,m,Math.min(pd,dim));
-    if(cut && payDate<=cut) continue;
-    if(payDate>today) continue;
-    sum += incomeForMonth(y,m);
+  const f=DB.pay.freq||"monthly"; let sum=0, guard=0;
+  if(f==="monthly"){
+    const pd=DB.pay.payDay||25;
+    let d = cut ? new Date(cut.getFullYear(),cut.getMonth(),1) : new Date(today.getFullYear(),today.getMonth(),1);
+    for(; d<=today && guard++<600; d.setMonth(d.getMonth()+1)){ const y=d.getFullYear(),m=d.getMonth(),dim=new Date(y,m+1,0).getDate(); const payDate=new Date(y,m,Math.min(pd,dim)); if(cut && payDate<=cut) continue; if(payDate>today) continue; sum+=payAmountForMonth(y,m); }
+  } else {
+    const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null;
+    if(!anchor||!step) return 0;
+    let d=new Date(anchor);
+    const lower = cut ? new Date(cut.getFullYear(),cut.getMonth(),cut.getDate()) : new Date(today.getFullYear(),today.getMonth()-1,1);
+    while(d>lower && guard++<5000) d.setDate(d.getDate()-step);
+    for(; d<=today && guard++<5000; d.setDate(d.getDate()+step)){ if(cut && d<=cut) continue; if(d>today) continue; sum+=payAmountForMonth(d.getFullYear(),d.getMonth()); }
   }
   return sum;
 }
@@ -1401,7 +1414,7 @@ function renderBank(){
     }
   }
   renderBankBalList();
-  const pd=document.getElementById("bankPayDay"); if(pd && document.activeElement!==pd) pd.value=DB.bank.payDay||25;
+  // payday now lives in the income section (pay schedule)
 }
 function renderDash(){
   try{ renderBank(); }catch(e){}
@@ -1969,12 +1982,38 @@ function populateIncomePickers(){
     const n=new Date(); mSel.value=n.getMonth(); ySel.value=n.getFullYear();
   }
 }
+function updPayUI(){
+  payInit();
+  const fs=document.getElementById("payFreq"); if(fs && document.activeElement!==fs) fs.value=DB.pay.freq;
+  const monthly=DB.pay.freq==="monthly";
+  const dw=document.getElementById("payDayWrap"), aw=document.getElementById("payAnchorWrap");
+  if(dw) dw.style.display=monthly?"block":"none";
+  if(aw) aw.style.display=monthly?"none":"block";
+  const di=document.getElementById("payDayIn"); if(di && document.activeElement!==di) di.value=DB.pay.payDay||25;
+  const ai=document.getElementById("payAnchorIn"); if(ai && document.activeElement!==ai) ai.value=DB.pay.anchor||"";
+  const pl=document.getElementById("payPerLbl"); if(pl) pl.textContent=payLabel(DB.pay.freq);
+}
+function changePayFreq(nf){
+  payInit(); const of=DB.pay.freq; if(!PAY_PPY[nf]) nf="monthly";
+  if(nf!==of && Array.isArray(DB.incomeHistory)){
+    const factor=(PAY_PPY[of]||12)/(PAY_PPY[nf]||12);   // keep the monthly-equivalent the same; rescale the per-pay figure
+    DB.incomeHistory.forEach(h=>{ h.amount=Math.round(((+h.amount||0)*factor)*100)/100; });
+  }
+  DB.pay.freq=nf;
+  if(nf!=="monthly" && !DB.pay.anchor) DB.pay.anchor=todayISO();
+  DB.regularIncome={amount:currentMonthlyIncome(), freq:"monthly"};
+  save(); updPayUI(); renderIncomeList(); updRegEquiv(); try{ renderDash(); }catch(e){} toast("Pay frequency updated ✓");
+}
+function savePayDay(){ payInit(); let v=parseInt(document.getElementById("payDayIn").value,10); if(isNaN(v)) v=25; DB.pay.payDay=Math.max(1,Math.min(28,v)); save(); try{ renderDash(); }catch(e){} }
+function savePayAnchor(){ payInit(); DB.pay.anchor=document.getElementById("payAnchorIn").value||todayISO(); save(); try{ renderDash(); }catch(e){} }
 function renderIncomeList(){
+  payInit(); const per=payLabel(DB.pay.freq);
   const list=incomeHist();
   document.getElementById("incomeList").innerHTML = list.length ? list.map(h=>{
     const pp=h.date.split("-"); const lbl=new Date(+pp[0],(+pp[1])-1,1).toLocaleDateString("en-GB",{month:"short",year:"numeric"});
-    return `<div class="catrow"><div class="catrow-main"><span class="cname">From ${lbl}</span><span style="font-weight:700">${gbp0(h.amount)}/mo</span><button class="btn danger" style="width:auto;padding:5px 9px;margin-left:auto" onclick="delIncome('${h.id}')">Delete</button></div></div>`;
-  }).join("") : '<div class="tiny muted" style="padding:2px 0">No income set yet — add your monthly take-home below.</div>';
+    return `<div class="catrow"><div class="catrow-main"><span class="cname">From ${lbl}</span><span style="font-weight:700">${gbp0(h.amount)} ${per}</span><button class="btn danger" style="width:auto;padding:5px 9px;margin-left:auto" onclick="delIncome('${h.id}')">Delete</button></div></div>`;
+  }).join("") : '<div class="tiny muted" style="padding:2px 0">No income set yet — add your take-home below.</div>';
+  updPayUI();
 }
 function addIncome(){
   const m=+document.getElementById("incMonth").value, y=+document.getElementById("incYear").value;
@@ -2118,8 +2157,10 @@ function addCat(){
   syncCatSelects(); renderCatCfg(); renderDash(); toast("Category added ✓");
 }
 function updRegEquiv(){
-  const a=currentMonthlyIncome();
-  document.getElementById("regEquiv").textContent = a>0 ? `Current monthly income: ${gbp0(a)}  (≈ ${gbp0(a*12)}/year)` : "Add your monthly take-home below so the dashboard figures are accurate.";
+  payInit(); const monthly=currentMonthlyIncome(); const n=new Date(); const raw=payAmountForMonth(n.getFullYear(),n.getMonth()); const per=payLabel(DB.pay.freq);
+  document.getElementById("regEquiv").textContent = monthly>0
+    ? (DB.pay.freq==="monthly" ? `Monthly income: ${gbp0(monthly)} (≈ ${gbp0(monthly*12)}/year)` : `${gbp0(raw)} ${per} · ≈ ${gbp0(monthly)}/month, ${gbp0(monthly*12)}/year`)
+    : "Add your take-home below so the figures are accurate.";
 }
 function exportData(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
@@ -2407,21 +2448,23 @@ function streakStats(st){
   while(d<cur.start && guard++<800){ const r=stPeriodRange(period,d); const sp=stSpendIn(st,r.start,r.end); if(budget>0 && sp<=budget+0.005){ run++; if(run>best)best=run; } else run=0; d=new Date(r.end); d.setDate(d.getDate()+1); }
   return {spent,budget,over,exact,remaining,period,count:run,best,active:!over,hasBudget:budget>0};
 }
-function streaksBrokenInMonth(y,m){
-  streaksInit(); if(!DB.streaks.length) return 0;
+function streaksBrokenNamesInMonth(y,m){
+  streaksInit(); const out=[]; if(!DB.streaks.length) return out;
   const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-  const monthStart=new Date(y,m,1), monthEnd=new Date(y,m+1,0); let broken=0;
+  const monthStart=new Date(y,m,1), monthEnd=new Date(y,m+1,0);
   DB.streaks.forEach(st=>{ const budget=+st.budget||0; if(budget<=0) return; const period=st.period||"month";
-    let d=new Date(monthStart); d.setDate(d.getDate()-31); const seen={}; let guard=0;
+    let d=new Date(monthStart); d.setDate(d.getDate()-31); const seen={}; let guard=0, broke=0;
     while(d<=monthEnd && guard++<140){ const r=stPeriodRange(period,d); const ek=ymd(r.end);
       if(!seen[ek]){ seen[ek]=true;
-        if(r.end>=monthStart && r.end<=monthEnd && r.start<=today){ const upto=(r.end<today)?r.end:today; if(stSpendIn(st,r.start,upto)>budget+0.005) broken++; }
+        if(r.end>=monthStart && r.end<=monthEnd && r.start<=today){ const upto=(r.end<today)?r.end:today; if(stSpendIn(st,r.start,upto)>budget+0.005) broke++; }
       }
       d=new Date(r.end); d.setDate(d.getDate()+1);
     }
+    if(broke>0) out.push({name:st.name||"Streak", times:broke});
   });
-  return broken;
+  return out;
 }
+function streaksBrokenInMonth(y,m){ return streaksBrokenNamesInMonth(y,m).reduce((a,x)=>a+x.times,0); }
 function streakPenaltyForMonth(y,m){ return Math.min(15, streaksBrokenInMonth(y,m)*4); }
 function monthLabelKey(k){ const pp=k.split("-"); return new Date(+pp[0],(+pp[1])-1,1).toLocaleDateString("en-GB",{month:"short",year:"numeric"}); }
 function streakBrokenLabel(st,k){ if(!k) return ""; if(st.period==="month") return monthLabelKey(k); if(st.period==="week") return "week of "+fmtDateY(k); return fmtDateY(k); }
@@ -2543,6 +2586,36 @@ function gradeForMonthCell(y,m){
   score-=streakPenaltyForMonth(y,m);
   return Math.max(0,Math.min(100,score));
 }
+function gradeBreakdownForMonth(y,m){
+  const mk=mkKey(y,m);
+  let ewf=0,enf=0,esf=0;
+  activeCats().forEach(c=>{ const t=monthTargetFor(c,mk); if(t<=0) return; if(c.group==="Savings") esf+=t; else if(isFlex(c)) ewf+=t; else enf+=t; });
+  if(ewf<=0) return null;
+  let aw=0,an=0,asv=0;
+  activeCats().forEach(c=>{ const v=Math.max(0,catNetInMonth(c.name,y,m)); if(c.group==="Savings") asv+=v; else if(isFlex(c)) aw+=v; else an+=v; });
+  const base=gradeScoreFromRatio(aw/ewf);
+  const billOver=enf>0?Math.max(0,an-enf):0, billPen=enf>0?Math.min(15,billOver/enf*30):0;
+  const savShort=esf>0?Math.max(0,esf-asv):0, savPen=esf>0?Math.min(12,savShort/esf*15):0;
+  const brokenNames=streaksBrokenNamesInMonth(y,m); const streakPen=Math.min(15, brokenNames.reduce((a,x)=>a+x.times,0)*4);
+  const score=Math.max(0,Math.min(100, base-billPen-savPen-streakPen));
+  return {score, base, ewf, aw, enf, an, esf, asv, billOver, billPen, savShort, savPen, brokenNames, streakPen};
+}
+function showGradeInfo(y,m){
+  const b=gradeBreakdownForMonth(y,m);
+  document.getElementById("gradeInfoTitle").textContent = new Date(y,m,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"})+" grade";
+  const body=document.getElementById("gradeInfoBody");
+  if(!b){ body.innerHTML='<p class="sub">No budgeted categories this month, so no grade was given.</p>'; document.getElementById("gradeInfoModal").classList.add("on"); return; }
+  let h=`<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0"><span>Flexible spend <b>${gbp(b.aw)}</b> of <b>${gbp(b.ewf)}</b> budget</span><span style="font-weight:700">${Math.round(b.base)} pts</span></div>`;
+  h+=`<div class="tiny" style="color:${b.aw>b.ewf?'var(--red)':'var(--green)'};padding:0 0 4px">${b.aw>b.ewf?("Overspent flexible budget by "+gbp(b.aw-b.ewf)):(gbp(b.ewf-b.aw)+" under your flexible budget")}</div>`;
+  if(b.billPen>0) h+=`<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><span>Bills over by ${gbp(b.billOver)}</span><span style="font-weight:700;color:var(--red)">−${Math.round(b.billPen)} pts</span></div>`;
+  if(b.savPen>0) h+=`<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><span>Under savings target by ${gbp(b.savShort)}</span><span style="font-weight:700;color:var(--red)">−${Math.round(b.savPen)} pts</span></div>`;
+  if(b.streakPen>0) h+=`<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line)"><span>Broke streak${b.brokenNames.length>1?"s":""}: ${b.brokenNames.map(x=>x.name+(x.times>1?" ×"+x.times:"")).join(", ")}</span><span style="font-weight:700;color:var(--red)">−${Math.round(b.streakPen)} pts</span></div>`;
+  const band=GRADECOL[gradeBand(b.score)];
+  h+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px;border-top:2px solid var(--line);margin-top:6px"><span style="font-weight:800">Final score</span><span style="font-weight:800">${Math.round(b.score)}/100 · <span style="color:${band[1]}">${gradeLetter(b.score)}</span></span></div>`;
+  body.innerHTML=h;
+  document.getElementById("gradeInfoModal").classList.add("on");
+}
+function closeGradeInfo(){ document.getElementById("gradeInfoModal").classList.remove("on"); }
 function renderGradeGrid(){
   const el=document.getElementById("gradeGrid"); if(!el) return;
   const now=new Date(), curKey=now.getFullYear()*12+now.getMonth();
@@ -2557,7 +2630,7 @@ function renderGradeGrid(){
       html+=`<div style="text-align:center;padding:9px 2px;border:1px dashed var(--line);border-radius:10px;opacity:.4"><div class="tiny muted">${lab}</div><div style="height:22px"></div></div>`;
     } else {
       const band=GRADECOL[gradeBand(sc)];
-      html+=`<div style="text-align:center;padding:9px 2px;border-radius:10px;background:${band[0]}"><div class="tiny muted">${lab}</div><div style="font-weight:800;font-size:18px;color:${band[1]}">${gradeLetter(sc)}</div></div>`;
+      html+=`<div onclick="showGradeInfo(${y},${m})" style="cursor:pointer;text-align:center;padding:9px 2px;border-radius:10px;background:${band[0]}"><div class="tiny muted">${lab}</div><div style="font-weight:800;font-size:18px;color:${band[1]}">${gradeLetter(sc)}</div></div>`;
     }
   }
   el.innerHTML=html;
@@ -2914,9 +2987,9 @@ function checkLevelUp(){
 let GSUB="savings";
 function goalsSub(which){
   GSUB=which;
-  ["savings","invest","objectives","streaks"].forEach(k=>{ const el=document.getElementById("gsub-"+k); if(el) el.style.display=(k===which)?"":"none"; });
+  ["savings","invest","streaks"].forEach(k=>{ const el=document.getElementById("gsub-"+k); if(el) el.style.display=(k===which)?"":"none"; });
   document.querySelectorAll("#goalsSeg button").forEach(b=>b.classList.toggle("on", b.dataset.gsub===which));
-  if(which==="streaks"){ renderXP(); renderStreaks(); renderGradeGrid(); }
+  if(which==="streaks"){ renderXP(); renderStreaks(); renderGradeGrid(); renderGoals(); }
   window.scrollTo(0,0);
 }
 function renderInvest(){
