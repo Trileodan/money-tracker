@@ -201,6 +201,13 @@ canvas{max-width:100%;}
       <p class="note" style="margin-top:4px">Set your current bank balance and payday in Settings and the app will track your live balance here.</p>
       <button class="btn sec" style="margin-top:4px" onclick="go('set')">Open Settings</button>
     </div>
+    <div class="card" id="monthBars" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span class="tiny muted" style="font-weight:700">Income this month</span><span class="tiny muted"><b id="mbIncomeNow" style="color:var(--green)">£0</b> / <b id="mbIncomeMax">£0</b></span></div>
+      <div class="bar" style="height:14px;margin-top:6px"><span id="mbIncomeBar" style="width:0%;background:var(--green)"></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:16px"><span class="tiny muted" style="font-weight:700">Spending this month</span><span class="tiny muted"><b id="mbSpendNow" style="color:var(--red)">£0</b> / <b id="mbSpendMax">£0</b></span></div>
+      <div class="bar" style="height:14px;margin-top:6px"><span id="mbSpendBar" style="width:0%;background:var(--red)"></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px"><span style="font-weight:700">Left to spend</span><span id="mbLeftover" style="font-weight:800;font-size:20px">£0</span></div>
+    </div>
     <div class="periods" id="periodSel"></div>
     <div id="customRange" style="display:none" class="card">
       <div class="row">
@@ -237,13 +244,6 @@ canvas{max-width:100%;}
       <h2 style="margin-top:2px">Welcome 👋</h2>
       <p class="note">This is your private money tracker. Nothing is stored online — all of your data lives only on this device. To bring in your figures, open <b>Settings → Import backup</b> and choose your <code>.json</code> file. You can start adding transactions any time too.</p>
       <button class="btn sec" style="margin-top:8px" onclick="go('set')">Open Settings to import</button>
-    </div>
-
-    <div class="tiles">
-      <div class="tile"><div class="lab">Income</div><div class="val pos" id="tIncome">£0</div></div>
-      <div class="tile"><div class="lab">Spending</div><div class="val neg" id="tSpend">£0</div></div>
-      <div class="tile"><div class="lab">Left over</div><div class="val" id="tNet">£0</div></div>
-      <div class="tile"><div class="lab">Into savings</div><div class="val" id="tSave">£0</div></div>
     </div>
 
     <div class="card" id="chartCard">
@@ -422,7 +422,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 73 · Goals tab &amp; grade breakdown</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 74 · income/spending bars</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -1408,7 +1408,7 @@ function renderBank(){
   if(bal==null){ if(card) card.style.display="none"; if(setup) setup.style.display="block"; }
   else {
     if(setup) setup.style.display="none"; if(card){ card.style.display="block";
-      document.getElementById("bankBal").textContent=gbp(bal);
+      document.getElementById("bankBal").textContent=gbp(bal); { const bb=document.getElementById("bankBal"); bb.style.color = bal>2000 ? "#e8b923" : (bal<0 ? "var(--red)" : "var(--green)"); }
       const soFar=expectedIncomeSoFar(), full=expectedIncomeFull();
       document.getElementById("bankInc").innerHTML = full>0 ? `Expected income this month: <b>${gbp(soFar)}</b> of ${gbp(full)}` : `Set your monthly income in Settings to project income.`;
     }
@@ -1416,8 +1416,29 @@ function renderBank(){
   renderBankBalList();
   // payday now lives in the income section (pay schedule)
 }
+function salaryInMonth(y,m){ payInit(); const f=DB.pay.freq||"monthly"; const mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0); if(f==="monthly"){ return payAmountForMonth(y,m); } const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0; let d=new Date(anchor),guard=0,sum=0; while(d>mStart && guard++<5000) d.setDate(d.getDate()-step); for(; d<=mEnd && guard++<5000; d.setDate(d.getDate()+step)){ if(d<mStart) continue; sum+=payAmountForMonth(y,m); } return sum; }
+function salaryReceivedInMonthToDate(y,m){ payInit(); const f=DB.pay.freq||"monthly"; const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); const mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0); const upto=today<mEnd?today:mEnd; if(f==="monthly"){ const pd=DB.pay.payDay||25, dim=mEnd.getDate(), payDate=new Date(y,m,Math.min(pd,dim)); return payDate<=upto?payAmountForMonth(y,m):0; } const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0; let d=new Date(anchor),guard=0,sum=0; while(d>mStart && guard++<5000) d.setDate(d.getDate()-step); for(; d<=mEnd && guard++<5000; d.setDate(d.getDate()+step)){ if(d<mStart||d>upto) continue; sum+=payAmountForMonth(y,m); } return sum; }
+function renderMonthBars(){
+  const card=document.getElementById("monthBars"); if(!card) return;
+  const n=new Date(), cy=n.getFullYear(), cm=n.getMonth();
+  let addl=0; (DB.txns||[]).forEach(t=>{ if(t.amount>0 && t.category==="Other Income"){ const dt=parse(t.date); if(dt.getFullYear()===cy && dt.getMonth()===cm) addl+=t.amount; } });
+  const total=salaryInMonth(cy,cm)+addl;
+  if(!(total>0)){ card.style.display="none"; return; }
+  card.style.display="block";
+  const received=Math.min(total, salaryReceivedInMonthToDate(cy,cm)+addl);
+  let spent=0; activeCats().forEach(c=>{ if(c.group==="Savings") return; const v=Math.max(0,catNetInMonth(c.name,cy,cm)); spent+=v; });
+  const leftover=total-spent;
+  document.getElementById("mbIncomeNow").textContent=gbp(received);
+  document.getElementById("mbIncomeMax").textContent=gbp(total);
+  document.getElementById("mbIncomeBar").style.width=Math.max(0,Math.min(100,received/total*100))+"%";
+  document.getElementById("mbSpendNow").textContent=gbp(spent);
+  document.getElementById("mbSpendMax").textContent=gbp(total);
+  document.getElementById("mbSpendBar").style.width=Math.max(0,Math.min(100,spent/total*100))+"%";
+  const lo=document.getElementById("mbLeftover"); lo.textContent=gbp(leftover); lo.style.color=leftover<0?"var(--red)":"var(--green)";
+}
 function renderDash(){
   try{ renderBank(); }catch(e){}
+  try{ renderMonthBars(); }catch(e){}
   document.getElementById("dashSub").textContent = periodLabel();
   const isTrends = PERIOD.key==="trends";
   document.getElementById("dashMain").style.display = isTrends?"none":"";
@@ -1456,12 +1477,7 @@ function renderDash(){
   let targetBase = base + income;                          // income = all logged income in the period
   const fullBasis = (PERIOD.key==="month"||PERIOD.key==="ytd"||PERIOD.key==="yearview"||PERIOD.key==="monthly");
 
-  document.getElementById("tIncome").textContent=gbp(targetBase);
-  document.getElementById("tSpend").textContent=gbp(spend);
-  const net=targetBase-spend;
-  const netEl=document.getElementById("tNet");
-  netEl.textContent=gbp(net); netEl.className="val "+(net>=0?"pos":"neg");
-  document.getElementById("tSave").textContent=gbp(saved);
+  // top tiles replaced by the income / spending bars (renderMonthBars)
   renderGrade();
   renderObjectivesDash();
   // sort by amount spent desc
@@ -1472,7 +1488,7 @@ function renderDash(){
     const cObj = catByName(c);
     const target = effTargetForPeriod(cObj);
     return {c, out, inflow, net:Math.max(net,0), target};
-  }).filter(d=>d.out>0 || d.target>0).sort((a,b)=>((b.target||0)-(a.target||0))||(b.net-a.net));
+  }).filter(d=>d.out>0 || d.target>0).sort((a,b)=>{ const sa=isFloorName(a.c)?1:0, sb=isFloorName(b.c)?1:0; return (sa-sb)||((b.target||0)-(a.target||0))||(b.net-a.net); });
 
   // chart — toggles between per-category and Needs/Wants/Savings group breakdown
   const pcOf = v => targetBase>0 ? Math.round(v/targetBase*100) : 0;
@@ -1489,7 +1505,7 @@ function renderDash(){
   // category list
   const list=document.getElementById("catList");
   if(data.length===0){ list.innerHTML='<div class="empty">No spending in this period yet.</div>'; }
-  else list.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + data.map(d=>{
+  else { let _savDivDone=false; list.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + data.map(d=>{
     const pct = targetBase>0 ? (d.net/targetBase*100) : 0;
     const ratio = d.target>0 ? d.net/d.target : 0;
     const isSav = isFloorName(d.c);
@@ -1530,26 +1546,11 @@ function renderDash(){
       </div>
       <button class="btn sec" style="margin-top:8px" onclick="event.stopPropagation();openHistory('${_esc}')">View transactions</button>`;
     }
-    return _h+`</div>`;
-  }).join("") + '</div>';
+    let _pre="";
+    if(isSav && !_savDivDone){ _pre='<div style="grid-column:1 / -1;border-top:1px solid var(--line);margin:8px 0 2px;padding-top:6px" class="tiny muted">Savings</div>'; _savDivDone=true; }
+    return _pre+_h+`</div>`;
+  }).join("") + '</div>'; }
 
-  // "Left to allocate" bar — full-income timeframes (This month / Year to date / Year overview)
-  if(fullBasis && targetBase>0){
-    const remaining = targetBase - spend;
-    const remPct = remaining/targetBase*100;
-    let col, label, shown, w;
-    if(remaining < 0){ col="var(--red)"; w=100; label="Overspent by "+gbp(-remaining); shown="-"+gbp(-remaining); }
-    else { col = "var(--green)"; w=Math.max(0,Math.min(100,remPct)); label=gbp(remaining)+" still to allocate"; shown=gbp(remaining); }
-    const html = `<div class="cat alloc">
-      <div class="top">
-        <span class="name"><span class="dot" style="background:${col}"></span>Left to allocate</span>
-        <span class="amt" style="color:${col}">${shown}</span>
-      </div>
-      <div class="barwrap"><div class="bar"><span style="width:${w}%;background:${col}"></span></div></div>
-      <div class="meta"><span>${label}</span><span class="muted">of ${gbp(targetBase)} ${(PERIOD.key==="month"||PERIOD.key==="monthly")?"month income":(PERIOD.key==="ytd"?"income to date":"annual income")}</span></div>
-    </div>`;
-    if(data.length===0) list.innerHTML = html; else list.innerHTML += html;
-  }
 }
 
 function drawChart(data){
