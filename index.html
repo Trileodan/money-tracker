@@ -191,20 +191,12 @@ canvas{max-width:100%;}
         <button class="btn sec" style="width:auto;padding:8px 12px;font-size:13px" onclick="dismissNag()">Later</button>
       </div>
     </div>
-    <div class="card" id="bankCard" style="display:none">
-      <div class="muted tiny">Current account balance</div>
-      <div class="bigfig" id="bankBal">£0</div>
-      <div class="tiny muted" id="bankInc" style="margin-top:6px"></div>
-    </div>
-    <div class="card" id="bankSetup" style="display:none">
-      <div class="muted tiny">Current account</div>
-      <p class="note" style="margin-top:4px">Set your current bank balance and payday in Settings and the app will track your live balance here.</p>
-      <button class="btn sec" style="margin-top:4px" onclick="go('set')">Open Settings</button>
-    </div>
     <div class="card" id="monthBars" style="display:none">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span class="tiny muted" style="font-weight:700">Income this month</span><span class="tiny muted"><b id="mbIncomeNow" style="color:var(--green)">£0</b> / <b id="mbIncomeMax">£0</b></span></div>
+      <div class="muted tiny">Expected income this month</div>
+      <div class="bigfig" id="mbTotal">£0</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:14px"><span class="tiny muted" style="font-weight:700">Income received</span><span class="tiny muted"><b id="mbIncomeNow" style="color:var(--green)">£0</b> / <b id="mbIncomeMax">£0</b></span></div>
       <div class="bar" style="height:14px;margin-top:6px"><span id="mbIncomeBar" style="width:0%;background:var(--green)"></span></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:16px"><span class="tiny muted" style="font-weight:700">Spending this month</span><span class="tiny muted"><b id="mbSpendNow" style="color:var(--red)">£0</b> / <b id="mbSpendMax">£0</b></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:16px"><span class="tiny muted" style="font-weight:700">Payments this month</span><span class="tiny muted"><b id="mbSpendNow" style="color:var(--red)">£0</b> / <b id="mbSpendMax">£0</b></span></div>
       <div class="bar" style="height:14px;margin-top:6px"><span id="mbSpendBar" style="width:0%;background:var(--red)"></span></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px"><span style="font-weight:700">Left to spend</span><span id="mbLeftover" style="font-weight:800;font-size:20px">£0</span></div>
     </div>
@@ -422,7 +414,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 74 · income/spending bars</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 76 · fixed &amp; flexible pots</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -443,19 +435,6 @@ canvas{max-width:100%;}
           <button class="btn sec" style="margin-top:8px" onclick="addIncome()">Save income figure</button>
         </div>
         <p class="tiny muted" id="regEquiv" style="margin-top:8px"></p>
-      </div>
-    </div>
-    <div class="acc" id="accBank">
-      <div class="acc-head" onclick="toggleAcc('accBank')"><span>Bank account &amp; balance</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
-      <div class="acc-body">
-        <p class="note">Track your live current-account balance. Set your balance now and the app keeps it up to date from your pay schedule (set under “Your monthly income”) and everything you log. If it ever drifts from your real balance, just set it again.</p>
-        <div id="bankBalList" style="margin-top:10px"></div>
-        <div class="row" style="margin-top:10px">
-          <div><label>Date</label><input type="date" id="bankBalDate"></div>
-          <div><label>Actual balance (£)</label><input type="number" id="bankBalAmt" inputmode="decimal" placeholder="£"></div>
-        </div>
-        <button class="btn sec" style="margin-top:8px" onclick="addBankBalance()">Set actual balance</button>
-        <p class="tiny muted" style="margin-top:8px">Your monthly wage amount comes from "Your monthly income" above. Don't log your regular wage as a transaction — the schedule adds it. Do log any <b>extra</b> income (bonuses, gifts) as it happens.</p>
       </div>
     </div>
     <div class="acc" id="accCats">
@@ -1428,6 +1407,7 @@ function renderMonthBars(){
   const received=Math.min(total, salaryReceivedInMonthToDate(cy,cm)+addl);
   let spent=0; activeCats().forEach(c=>{ if(c.group==="Savings") return; const v=Math.max(0,catNetInMonth(c.name,cy,cm)); spent+=v; });
   const leftover=total-spent;
+  document.getElementById("mbTotal").textContent=gbp(total);
   document.getElementById("mbIncomeNow").textContent=gbp(received);
   document.getElementById("mbIncomeMax").textContent=gbp(total);
   document.getElementById("mbIncomeBar").style.width=Math.max(0,Math.min(100,received/total*100))+"%";
@@ -1488,7 +1468,7 @@ function renderDash(){
     const cObj = catByName(c);
     const target = effTargetForPeriod(cObj);
     return {c, out, inflow, net:Math.max(net,0), target};
-  }).filter(d=>d.out>0 || d.target>0).sort((a,b)=>{ const sa=isFloorName(a.c)?1:0, sb=isFloorName(b.c)?1:0; return (sa-sb)||((b.target||0)-(a.target||0))||(b.net-a.net); });
+  }).filter(d=>d.out>0 || d.target>0).sort((a,b)=>{ const ra=dashCatRank(a), rb=dashCatRank(b); return (ra-rb)||((b.target||0)-(a.target||0))||(b.net-a.net); });
 
   // chart — toggles between per-category and Needs/Wants/Savings group breakdown
   const pcOf = v => targetBase>0 ? Math.round(v/targetBase*100) : 0;
@@ -1521,19 +1501,21 @@ function renderDash(){
       fillW=Math.min(100, d.target>0?ratio*100:(d.net>0?100:0));
       fillCol="var(--green)";
     } else {
-      if(d.target<=0){ flag="no target"; fcls="ok"; }
-      else if(ratio>1){ flag="cut back · "+gbp(d.net-d.target)+" over"; fcls="over"; }
-      else if(ratio>0.85){ flag="near limit"; fcls="near"; }
-      else { flag="on track"; fcls="ok"; }
+      const _c=catByName(d.c), _fx=(_c?isFlex(_c):false);
+      if(d.target<=0){ flag="no target"; fcls="ok"; fillCol="var(--green)"; }
+      else if(!_fx){ if(ratio>=1){ flag="paid ✓"; fcls="ok"; fillCol="#e8b923"; } else { flag=gbp(d.target-d.net)+" to pay"; fcls="ok"; fillCol="var(--green)"; } }
+      else { if(ratio>1){ flag="over aim · "+gbp(d.net-d.target); fcls="near"; fillCol="var(--amber)"; } else { flag="on track"; fcls="ok"; fillCol="var(--green)"; } }
       fillW=Math.min(100, d.target>0?ratio*100:(d.net>0?100:0));
-      fillCol = ratio>1?"var(--red)":"var(--green)";
     }
     const _open=DASH_OPEN.has(d.c), _bud=d.target, _paid=d.net, _esc=d.c.replace(/'/g,"\\'");
-    let _col,_tint;
+    const _catObj=catByName(d.c), _isFlex=(!isSav && _catObj)?isFlex(_catObj):false, _isFixed=(!isSav && !_isFlex);
+    const _complete=_isFixed && _bud>0 && _paid>=_bud-0.005;
+    let _col,_tint,_border="";
     if(isSav){ if(_bud<=0){_col="var(--muted)";_tint="transparent";} else if(_paid>=_bud){_col="var(--green)";_tint="rgba(16,185,129,.13)";} else {_col="var(--amber)";_tint="rgba(245,158,11,.10)";} }
-    else { if(_bud<=0){_col="var(--muted)";_tint="transparent";} else if(Math.abs(_paid-_bud)<0.005){_col="#e8b923";_tint="rgba(232,185,35,.13)";} else if(_paid>_bud){_col="var(--red)";_tint="rgba(239,68,68,.13)";} else {_col="var(--green)";_tint="rgba(16,185,129,.13)";} }
-    let _h=`<div class="strbox${_open?" open":""}" onclick="toggleDashCat('${_esc}')" style="background:${_tint}">
-      <div class="tiny" style="font-weight:700;display:flex;align-items:center;gap:6px;min-width:0"><span class="dot" style="background:${catColor(d.c)};flex:none"></span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.c}</span></div>
+    else if(_isFixed){ if(_complete){_col="#e8b923";_tint="rgba(232,185,35,.13)";_border="border:2px solid #e8b923;";} else {_col="var(--green)";_tint=_bud>0?"rgba(16,185,129,.13)":"transparent";} }
+    else { if(_bud<=0){_col="var(--muted)";_tint="transparent";} else if(_paid>_bud+0.005){_col="var(--amber)";_tint="rgba(245,158,11,.13)";} else {_col="var(--green)";_tint="rgba(16,185,129,.13)";} }
+    let _h=`<div class="strbox${_open?" open":""}" onclick="toggleDashCat('${_esc}')" style="background:${_tint};${_border}">
+      <div class="tiny" style="font-weight:700;display:flex;align-items:center;gap:6px;min-width:0"><span class="dot" style="background:${catColor(d.c)};flex:none"></span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.c}</span>${_complete?'<span style="color:#e8b923;flex:none">✓</span>':''}</div>
       <div style="margin-top:6px"><span style="font-size:18px;font-weight:800;color:${_col}">${gbp0(_paid)}</span> <span class="tiny muted">/ ${_bud>0?gbp0(_bud):"—"}</span></div>`;
     if(_open){
       _h+=`<div class="barwrap" style="margin-top:8px">
@@ -1553,6 +1535,8 @@ function renderDash(){
 
 }
 
+function dashCatComplete(d){ if(isFloorName(d.c)) return false; const c=catByName(d.c); const flexi=c?isFlex(c):false; return (!flexi) && d.target>0 && d.net>=d.target-0.005; }
+function dashCatRank(d){ if(isFloorName(d.c)) return 2; return dashCatComplete(d)?1:0; }
 function drawChart(data){
   const ctx=document.getElementById("chart");
   const card=document.getElementById("chartCard");
