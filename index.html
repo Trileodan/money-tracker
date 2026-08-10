@@ -183,6 +183,7 @@ canvas{max-width:100%;}
 
   <!-- ============ DASHBOARD ============ -->
   <div class="page on" id="page-dash">
+    <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:6px"><button class="btn sec" style="width:auto;padding:6px 12px;position:relative" onclick="openMore()">⋯ More <span class="dot" id="moreDot" style="background:var(--red);display:none;margin-left:4px"></span></button></div>
     <p class="sub" id="dashSub" style="display:none"></p>
     <div id="backupNag" class="nag" style="display:none">
       <span id="backupNagTxt"></span>
@@ -222,6 +223,7 @@ canvas{max-width:100%;}
       <div class="bar" style="height:14px;margin-top:6px"><span id="mbIncomeBar" style="width:0%;background:var(--green)"></span></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:16px"><span class="tiny muted" style="font-weight:700">Payments this period</span><span class="tiny muted"><b id="mbSpendNow" style="color:var(--red)">£0</b> / <b id="mbSpendMax">£0</b></span></div>
       <div class="bar" style="height:14px;margin-top:6px"><span id="mbSpendBar" style="width:0%;background:var(--red)"></span></div>
+      <div id="mbCcPending" class="tiny muted" style="display:none;margin-top:8px"></div>
     </div>
     <div class="card" id="gradeCard" style="display:none">
       <div style="display:flex;align-items:center;gap:14px">
@@ -252,8 +254,8 @@ canvas{max-width:100%;}
       <div class="legend" id="legend"></div>
     </div>
 
-    <h2>Spending by category</h2>
-    <p class="sub" id="targetNote">Bars show spend vs your suggested target. Tap a target to edit in Settings.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Spending by category</h2><button class="btn sec" style="width:auto;padding:5px 12px" id="editCatsBtn" onclick="toggleEditCats()">Manage</button></div>
+    <p class="sub" id="targetNote">Tap a pot to add to it. Tap <b>Manage</b> to add or edit your categories.</p>
     <div class="card" id="catList"></div>
     </div>
 
@@ -268,17 +270,17 @@ canvas{max-width:100%;}
     </div>
   </div>
 
-  <!-- ============ ADD ============ -->
-  <div class="page" id="page-add">
-    <h1>Add transaction</h1>
-    <p class="sub">Log money in or out.</p>
-    <div class="card">
+  <!-- ============ ADD (popup) ============ -->
+  <div class="modal" id="addModal">
+    <div class="sheet">
+      <h2 style="margin-top:0" id="addTitle">Add transaction</h2>
       <div class="field">
         <div class="seg" id="flowSeg">
           <button class="on in" data-flow="in" onclick="setFlow('in')">Income</button>
           <button data-flow="out" onclick="setFlow('out')">Outgoing</button>
         </div>
       </div>
+      <div id="addPotStatus" class="tiny" style="display:none;margin-bottom:8px;font-weight:600"></div>
       <div class="field suggwrap"><label>Description</label><input id="aDesc" autocomplete="off" placeholder="e.g. Phone Bill, Coffee" oninput="descInput()" onblur="setTimeout(function(){var b=document.getElementById('descSugg');if(b)b.style.display='none';},150)"><div class="suggbox" id="descSugg"></div></div>
       <div class="field"><label>Amount (£)</label><input type="number" inputmode="decimal" id="aAmount" placeholder="0.00" step="0.01"></div>
       <div class="field"><label>Date</label><input type="date" id="aDate"></div>
@@ -290,42 +292,26 @@ canvas{max-width:100%;}
         <div id="aFreqWrap" style="display:none;margin-top:10px">
           <label>How often</label>
           <select id="aFreq"></select>
-          <p class="note" style="margin:6px 0 0">Each time it's due it'll appear under "Monthly &amp; pending" for you to confirm or reject. It repeats from the date above.</p>
+          <p class="note" style="margin:6px 0 0">Each time it's due it'll appear under "Monthly &amp; pending" for you to confirm or reject.</p>
         </div>
+      </div>
+      <div class="field" id="aCCWrap">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
+          <input type="checkbox" id="aCC" style="width:auto"> Paid on credit card
+        </label>
+        <p class="note" style="margin:6px 0 0">Counts toward the category straight away, but only leaves your "left to spend" when your card payment goes out.</p>
       </div>
       <div class="field">
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
           <input type="checkbox" id="aPriv" style="width:auto"> Hide details from other users
         </label>
-        <p class="note" style="margin:6px 0 0">Use for gifts or surprises. Other people see only "Private entry" with the amount — you still see the full details.</p>
       </div>
-      <button class="btn" onclick="addTx()">Save transaction</button>
-    </div>
-
-    <div class="acc" id="accMonthly">
-      <div class="acc-head" onclick="toggleAcc('accMonthly')"><span>Monthly &amp; pending</span><span class="dot" id="pendDot" style="background:var(--red);display:none;margin-left:6px"></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
-      <div class="acc-body">
-        <p class="sub" style="margin-top:2px">Confirm or reject items that are due, and manage your repeating payments.</p>
-        <h2 style="margin-top:8px">Due now</h2>
-        <div id="pendList"></div>
-        <h2>Recurring templates</h2>
-        <p class="sub">Each appears for confirmation on its schedule — weekly, fortnightly, monthly or annually. Tap Edit to change one.</p>
-        <div class="card" id="recList"></div>
+      <button class="btn sec" id="addViewTx" style="display:none;width:100%;margin-bottom:8px" onclick="viewAddCat()">View transactions</button>
+      <div class="row">
+        <button class="btn sec" onclick="closeAdd()">Cancel</button>
+        <button class="btn" onclick="addTx()">Save</button>
       </div>
     </div>
-
-    <!-- ==== STATEMENT IMPORT (v53) start :: self-contained; to fully remove this feature delete this acc block, the #impModal modal, and the "STATEMENT IMPORT" JS block ==== -->
-    <div class="acc" id="accImport">
-      <div class="acc-head" onclick="toggleAcc('accImport')"><span>Import bank statement</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
-      <div class="acc-body">
-        <p class="sub" style="margin-top:2px">Import a CSV statement (Nationwide, NatWest and most UK banks). I'll sort each transaction into a category, skip anything already in your log, and let you review everything before it's added. Nothing leaves your device.</p>
-        <div id="impResume" style="display:none;margin:2px 0 10px"></div>
-        <div class="field"><label>Statement file (.csv)</label><input type="file" id="impFileInput" accept=".csv,text/csv" onchange="impFile(this)"></div>
-        <div class="field"><label>Match window (days)</label><input type="number" id="impTol" value="4" min="0" step="1" inputmode="numeric" style="max-width:120px"><p class="note" style="margin:6px 0 0">A manual entry within this many days of a statement line (same shop, same amount) counts as the same transaction — so it won't be added twice.</p></div>
-        <p class="note" id="impMsg" style="color:var(--amber)"></p>
-      </div>
-    </div>
-    <!-- ==== STATEMENT IMPORT (v53) end ==== -->
   </div>
 
   <!-- ============ TRANSACTIONS ============ -->
@@ -418,7 +404,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 77 · period bars &amp; left-to-spend</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 81 · credit card</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -439,6 +425,14 @@ canvas{max-width:100%;}
           <button class="btn sec" style="margin-top:8px" onclick="addIncome()">Save income figure</button>
         </div>
         <p class="tiny muted" id="regEquiv" style="margin-top:8px"></p>
+      </div>
+    </div>
+    <div class="acc" id="accCC">
+      <div class="acc-head" onclick="toggleAcc('accCC')"><span>Credit card</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="note">When adding a payment you can mark it "Paid on credit card". It counts toward the category straight away, but only affects your left-to-spend on the day your card payment leaves your account.</p>
+        <div class="field"><label>Card payment day (day of the month it leaves)</label><input type="number" id="ccDayIn" min="1" max="28" inputmode="numeric" onchange="saveCcSettings()" style="max-width:120px"></div>
+        <div class="field"><label>Default for new payments</label><select id="ccDefaultIn" onchange="saveCcSettings()"><option value="balance">Pay from balance</option><option value="credit">Pay on credit card</option></select></div>
       </div>
     </div>
     <div class="acc" id="accCats">
@@ -664,7 +658,7 @@ canvas{max-width:100%;}
 <div class="tabbar" id="tabbar">
   <button class="on" data-tab="dash" onclick="go('dash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h8V3H3zM13 21h8V8h-8zM3 21h8v-5H3z"/></svg>Dashboard</button>
   <button data-tab="tx" onclick="go('tx')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History<span class="badge" id="orphanBadge" style="display:none">0</span></button>
-  <button data-tab="add" onclick="go('add')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add<span class="tabdot" id="addDot" style="display:none"></span></button>
+  <button onclick="openAdd()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add</button>
   <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none"/></svg>Goals</button>
   <button data-tab="family" onclick="go('family')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M4 20c0-3 2.5-5 5-5s5 2 5 5"/><path d="M16 5.5a3 3 0 0 1 0 5.9"/><path d="M17.5 15c1.9.5 3.5 2 3.5 5"/></svg>Family</button>
   <button data-tab="set" onclick="go('set')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
@@ -787,6 +781,41 @@ canvas{max-width:100%;}
   </div>
 </div>
 
+<div class="modal" id="moreModal">
+  <div class="sheet">
+    <h2 style="margin-top:0">More</h2>
+    <button class="btn sec" style="width:100%;margin-bottom:8px;position:relative" onclick="openMonthlySheet()">Monthly &amp; pending <span class="dot" id="moreDotSheet" style="background:var(--red);display:none;margin-left:6px"></span></button>
+    <button class="btn sec" style="width:100%;margin-bottom:8px" onclick="openImportSheet()">Import bank statement</button>
+    <button class="btn sec" style="width:100%;margin-bottom:8px" onclick="closeMore();exportData()">Back up data (.json)</button>
+    <button class="btn sec" style="width:100%" onclick="closeMore()">Close</button>
+  </div>
+</div>
+
+<div class="modal" id="monthlySheet">
+  <div class="sheet">
+    <h2 style="margin-top:0">Monthly &amp; pending</h2>
+    <p class="sub" style="margin-top:2px">Confirm or reject items that are due, and manage your repeating payments.</p>
+    <h2 style="margin-top:8px">Due now</h2>
+    <div id="pendList"></div>
+    <h2>Recurring templates</h2>
+    <p class="sub">Each appears for confirmation on its schedule — weekly, fortnightly, monthly or annually. Tap Edit to change one.</p>
+    <div class="card" id="recList"></div>
+    <button class="btn sec" style="margin-top:14px;width:100%" onclick="closeMonthlySheet()">Close</button>
+  </div>
+</div>
+
+<div class="modal" id="importSheet">
+  <div class="sheet">
+    <h2 style="margin-top:0">Import bank statement</h2>
+    <p class="sub" style="margin-top:2px">Import a CSV statement (Nationwide, NatWest and most UK banks). I'll sort each transaction into a category, skip anything already logged, and let you review before adding. Nothing leaves your device.</p>
+    <div id="impResume" style="display:none;margin:2px 0 10px"></div>
+    <div class="field"><label>Statement file (.csv)</label><input type="file" id="impFileInput" accept=".csv,text/csv" onchange="impFile(this)"></div>
+    <div class="field"><label>Match window (days)</label><input type="number" id="impTol" value="4" min="0" step="1" inputmode="numeric" style="max-width:120px"><p class="note" style="margin:6px 0 0">A manual entry within this many days of a statement line (same shop, same amount) counts as the same transaction.</p></div>
+    <p class="note" id="impMsg" style="color:var(--amber)"></p>
+    <button class="btn sec" style="margin-top:8px;width:100%" onclick="closeImportSheet()">Close</button>
+  </div>
+</div>
+
 <div class="modal" id="impModal">
   <div class="sheet">
     <h2 style="margin-top:0">Review import</h2>
@@ -818,19 +847,25 @@ canvas{max-width:100%;}
 
 <div class="modal" id="catModal">
   <div class="sheet">
-    <h2 style="margin-top:0">Edit category</h2>
+    <h2 style="margin-top:0" id="catModalTitle">Edit category</h2>
     <div class="field"><label>Name</label><input id="ecName"></div>
-    <div class="field"><label>Group</label><select id="ecGroup"><option>Needs</option><option>Wants</option><option>Savings</option></select></div>
-    <div class="field" id="ecFlexWrap">
-      <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
-        <input type="checkbox" id="ecFlex" style="width:auto"> Variable spend — count in my grade
-      </label>
-      <p class="note" style="margin:6px 0 0">Tick for spending that trickles through the month and you could cut back (e.g. Groceries, Travel). It gets paced across the month and counts toward your grade. Leave unticked for fixed bills, which are judged only on staying within target.</p>
+    <div class="field"><label>Type</label><select id="ecType">
+      <option value="fixed">Fixed bill — completes when paid</option>
+      <option value="flexible">Flexible — a soft spending aim</option>
+      <option value="savings">Savings</option>
+    </select></div>
+    <div class="field"><label>Monthly budget (£)</label><input type="number" id="ecAmount" inputmode="decimal" placeholder="£"></div>
+    <div class="field"><label>This month only (£, optional)</label><input type="number" id="ecMonthAmt" inputmode="decimal" placeholder="leave blank to use the monthly budget"></div>
+    <div class="row">
+      <div><label>Active from (optional)</label><input type="month" id="ecFrom"></div>
+      <div><label>Active until (optional)</label><input type="month" id="ecTo"></div>
     </div>
+    <p class="note">Leave the dates blank for an always-on category. Set them for a temporary one — a payment spread over a few months only shows and counts in those months.</p>
     <div class="row">
       <button class="btn sec" onclick="closeCatModal()">Cancel</button>
       <button class="btn" onclick="saveCatEdit()">Save</button>
     </div>
+    <button class="btn danger" id="ecDelete" style="margin-top:8px;width:100%;display:none" onclick="delCatFromEditor()">Delete category</button>
   </div>
 </div>
 
@@ -1136,8 +1171,10 @@ function monthKeysInRange(){
   while((y<eY||(y===eY&&m<=eM)) && g++<600){ keys.push(mkKey(y,m)); m++; if(m>11){m=0;y++;} }
   return keys.length?keys:[mkKey(from.getFullYear(),from.getMonth())];
 }
+function catActiveInMonth(cObj, mk){ if(!cObj) return true; if(cObj.activeFrom && mk < cObj.activeFrom) return false; if(cObj.activeTo && mk > cObj.activeTo) return false; return true; }
 function monthTargetFor(cObj, mk){                    // effective monthly target for a category in month mk
   if(!cObj) return 0;
+  if(!catActiveInMonth(cObj, mk)) return 0;           // temporary category: no target outside its active window
   const o=DB.monthTargets && DB.monthTargets[mk];
   if(o){ const v=o[cObj.id]; if(v!=null && v!=="" && !isNaN(+v)) return +v; }
   return +cObj.amount||0;
@@ -1399,6 +1436,19 @@ function renderBank(){
   renderBankBalList();
   // payday now lives in the income section (pay schedule)
 }
+function ccDay(){ payInit(); return (DB.pay.ccDay>=1&&DB.pay.ccDay<=28)?DB.pay.ccDay:20; }
+function ccSettleDate(dateStr){ const d=parse(dateStr); const cd=ccDay(); const dim1=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); let cand=new Date(d.getFullYear(),d.getMonth(),Math.min(cd,dim1)); if(cand<d){ const y=d.getFullYear(),m=d.getMonth()+1; const dim2=new Date(y,m+1,0).getDate(); cand=new Date(y,m,Math.min(cd,dim2)); } return cand; }
+function paymentsOut(from,to){
+  const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); let sum=0;
+  (DB.txns||[]).forEach(t=>{ if(t.amount>=0) return; if(INCOME_CATS.indexOf(t.category)>=0) return; const c=catByName(t.category); if(c && c.group==="Savings") return;
+    if(t.cc){ const sd=ccSettleDate(t.date); if(sd>today) return; if(sd<from||sd>to) return; sum+=-(+t.amount||0); }
+    else { const dt=parse(t.date); if(dt<from||dt>to) return; sum+=-(+t.amount||0); }
+  });
+  return sum;
+}
+function ccPendingTotal(){ const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); let sum=0; (DB.txns||[]).forEach(t=>{ if(t.amount>=0||!t.cc) return; const c=catByName(t.category); if(c && c.group==="Savings") return; if(ccSettleDate(t.date)>today) sum+=-(+t.amount||0); }); return sum; }
+function saveCcSettings(){ payInit(); let v=parseInt(document.getElementById("ccDayIn").value,10); if(isNaN(v)) v=20; DB.pay.ccDay=Math.max(1,Math.min(28,v)); DB.pay.ccDefault=document.getElementById("ccDefaultIn").value||"balance"; save(); try{ renderDash(); }catch(e){} }
+function updCcUI(){ payInit(); const d=document.getElementById("ccDayIn"); if(d && document.activeElement!==d) d.value=ccDay(); const s=document.getElementById("ccDefaultIn"); if(s && document.activeElement!==s) s.value=DB.pay.ccDefault||"balance"; }
 function salaryBetween(from,to,capToday){
   payInit(); const f=DB.pay.freq||"monthly";
   const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
@@ -1418,7 +1468,13 @@ function salaryBetween(from,to,capToday){
   }
   return sum;
 }
-function openAddIncome(){ try{ go("add"); setFlow("in"); const c=document.getElementById("aCat"); if(c){ if([...c.options].some(o=>o.value==="Other Income")) c.value="Other Income"; } const a=document.getElementById("aAmount"); if(a) a.focus(); }catch(e){} }
+let ADD_CTX_CAT="";
+function potAddStatus(cat){ const c=catByName(cat); if(!c) return ""; const n=new Date(); const paid=Math.max(0,catNetInMonth(cat,n.getFullYear(),n.getMonth())); const bud=monthTargetFor(c,mkKey(n.getFullYear(),n.getMonth())); return bud>0 ? (gbp(paid)+" of "+gbp(bud)+" this month") : (gbp(paid)+" spent this month"); }
+function openAdd(){ try{ syncCatSelects(); }catch(e){} ADD_CTX_CAT=""; const t=document.getElementById("addTitle"); if(t) t.textContent="Add transaction"; const ps=document.getElementById("addPotStatus"); if(ps) ps.style.display="none"; const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="none"; const _cc=document.getElementById("aCC"); if(_cc) _cc.checked=(DB.pay&&DB.pay.ccDefault==="credit"); const _cw=document.getElementById("aCCWrap"); if(_cw) _cw.style.display=(FLOW==="out")?"block":"none"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); }
+function openPotAdd(cat){ try{ syncCatSelects(); }catch(e){} ADD_CTX_CAT=cat; try{ setFlow("out"); }catch(e){} const c=document.getElementById("aCat"); if(c && [...c.options].some(o=>o.value===cat)) c.value=cat; const t=document.getElementById("addTitle"); if(t) t.textContent="Add to "+cat; const ps=document.getElementById("addPotStatus"); if(ps){ const st=potAddStatus(cat); ps.textContent=st; ps.style.display=st?"block":"none"; } const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="block"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const am=document.getElementById("aAmount"); if(am) am.value=""; const de=document.getElementById("aDesc"); if(de) de.value=""; const _cc=document.getElementById("aCC"); if(_cc) _cc.checked=(DB.pay&&DB.pay.ccDefault==="credit"); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); if(am) am.focus(); }
+function openAddIncome(){ try{ syncCatSelects(); ADD_CTX_CAT=""; setFlow("in"); const c=document.getElementById("aCat"); if(c && [...c.options].some(o=>o.value==="Other Income")) c.value="Other Income"; const t=document.getElementById("addTitle"); if(t) t.textContent="Add income"; const ps=document.getElementById("addPotStatus"); if(ps) ps.style.display="none"; const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="none"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); const a=document.getElementById("aAmount"); if(a) a.focus(); }catch(e){} }
+function closeAdd(){ const m=document.getElementById("addModal"); if(m) m.classList.remove("on"); }
+function viewAddCat(){ const c=ADD_CTX_CAT; closeAdd(); if(c) openHistory(c); }
 function salaryInMonth(y,m){ payInit(); const f=DB.pay.freq||"monthly"; const mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0); if(f==="monthly"){ return payAmountForMonth(y,m); } const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0; let d=new Date(anchor),guard=0,sum=0; while(d>mStart && guard++<5000) d.setDate(d.getDate()-step); for(; d<=mEnd && guard++<5000; d.setDate(d.getDate()+step)){ if(d<mStart) continue; sum+=payAmountForMonth(y,m); } return sum; }
 function salaryReceivedInMonthToDate(y,m){ payInit(); const f=DB.pay.freq||"monthly"; const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); const mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0); const upto=today<mEnd?today:mEnd; if(f==="monthly"){ const pd=DB.pay.payDay||25, dim=mEnd.getDate(), payDate=new Date(y,m,Math.min(pd,dim)); return payDate<=upto?payAmountForMonth(y,m):0; } const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0; let d=new Date(anchor),guard=0,sum=0; while(d>mStart && guard++<5000) d.setDate(d.getDate()-step); for(; d<=mEnd && guard++<5000; d.setDate(d.getDate()+step)){ if(d<mStart||d>upto) continue; sum+=payAmountForMonth(y,m); } return sum; }
 function renderMonthBars(){
@@ -1487,7 +1543,7 @@ function renderDash(){
     const _salTot=salaryBetween(_pr.from,_toFull,false), _salRec=salaryBetween(_pr.from,_toFull,true);
     let _addl=0; (DB.txns||[]).forEach(t=>{ if(t.amount>0 && t.category==="Other Income"){ const dt=parse(t.date); if(dt>=_pr.from && dt<=_pr.to) _addl+=t.amount; } });
     const _incTot=_salTot+_addl, _incRec=Math.min(_incTot,_salRec+_addl);
-    let _payNoSav=0; activeCats().forEach(c=>{ if(c.group==="Savings") return; const nt=-(byCat[c.name]||0); if(nt>0) _payNoSav+=nt; });
+    const _payNoSav=paymentsOut(_pr.from,_pr.to);
     const _left=_incTot-_payNoSav, _mb=document.getElementById("monthBars");
     if(_mb){ if(!(_incTot>0)){ _mb.style.display="none"; } else { _mb.style.display="block";
       const lo=document.getElementById("mbLeftover"); lo.textContent=gbp(_left); lo.style.color=_left<0?"var(--red)":"var(--green)";
@@ -1497,6 +1553,7 @@ function renderDash(){
       document.getElementById("mbSpendNow").textContent=gbp(_payNoSav);
       document.getElementById("mbSpendMax").textContent=gbp(_incTot);
       document.getElementById("mbSpendBar").style.width=Math.max(0,Math.min(100,_payNoSav/_incTot*100))+"%";
+      const _cp=ccPendingTotal(), cpel=document.getElementById("mbCcPending"); if(cpel){ if(_cp>0.005){ cpel.textContent=gbp(_cp)+" pending on credit card"; cpel.style.display="block"; } else { cpel.style.display="none"; } }
     } }
   }catch(e){}
   renderGrade();
@@ -1525,7 +1582,8 @@ function renderDash(){
 
   // category list
   const list=document.getElementById("catList");
-  if(data.length===0){ list.innerHTML='<div class="empty">No spending in this period yet.</div>'; }
+  const _addBox = EDIT_CATS ? '<div class="strbox" onclick="openNewCat()" style="grid-column:1 / -1;display:flex;align-items:center;justify-content:center;border:2px dashed var(--line);color:var(--muted);min-height:54px"><span style="font-size:18px;font-weight:800">+ Add category</span></div>' : '';
+  if(data.length===0){ list.innerHTML = _addBox ? ('<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+_addBox+'</div>') : '<div class="empty">No spending in this period yet.</div>'; }
   else { let _savDivDone=false; list.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + data.map(d=>{
     const pct = targetBase>0 ? (d.net/targetBase*100) : 0;
     const ratio = d.target>0 ? d.net/d.target : 0;
@@ -1555,27 +1613,18 @@ function renderDash(){
     if(isSav){ if(_bud<=0){_col="var(--muted)";_tint="transparent";} else if(_paid>=_bud){_col="var(--green)";_tint="rgba(16,185,129,.13)";} else {_col="var(--amber)";_tint="rgba(245,158,11,.10)";} }
     else if(_isFixed){ if(_complete){_col="#e8b923";_tint="rgba(232,185,35,.13)";_border="border:2px solid #e8b923;";} else {_col="var(--green)";_tint=_bud>0?"rgba(16,185,129,.13)":"transparent";} }
     else { if(_bud<=0){_col="var(--muted)";_tint="transparent";} else if(_paid>_bud+0.005){_col="var(--amber)";_tint="rgba(245,158,11,.13)";} else {_col="var(--green)";_tint="rgba(16,185,129,.13)";} }
-    let _h=`<div class="strbox${_open?" open":""}" onclick="toggleDashCat('${_esc}')" style="background:${_tint};${_border}">
+    let _h=`<div class="strbox" onclick="${EDIT_CATS?("editCatByName('"+_esc+"')"):("openPotAdd('"+_esc+"')")}" style="background:${_tint};${_border}">
       <div class="tiny" style="font-weight:700;display:flex;align-items:center;gap:6px;min-width:0"><span class="dot" style="background:${catColor(d.c)};flex:none"></span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.c}</span>${_complete?'<span style="color:#e8b923;flex:none">✓</span>':''}</div>
       <div style="margin-top:6px"><span style="font-size:18px;font-weight:800;color:${_col}">${gbp0(_paid)}</span> <span class="tiny muted">/ ${_bud>0?gbp0(_bud):"—"}</span></div>`;
-    if(_open){
-      _h+=`<div class="barwrap" style="margin-top:8px">
-        <div class="bar"><span style="width:${fillW}%;background:${fillCol}"></span></div>
-        ${d.target>0?`<div class="target-mark" style="left:${Math.min(100, 100*d.target/Math.max(d.net,d.target))}%"></div>`:""}
-      </div>
-      <div class="meta" style="margin-top:6px">
-        <span>${targetBase>0?pct.toFixed(0)+"% of income":""} ${d.target>0?(isFloorName(d.c)?" · min ":" · target ")+gbp(d.target):""}${(!isFloorName(d.c) && d.target>0 && d.net<d.target)?" · "+gbp(d.target-d.net)+" left":""}${adj?' · <span style="color:var(--amber);font-weight:600">adjusted</span>':''}</span>
-        <span class="flag ${fcls}">${flag}</span>
-      </div>
-      <button class="btn sec" style="margin-top:8px" onclick="event.stopPropagation();openHistory('${_esc}')">View transactions</button>`;
-    }
     let _pre="";
     if(isSav && !_savDivDone){ _pre='<div style="grid-column:1 / -1;border-top:1px solid var(--line);margin:8px 0 2px;padding-top:6px" class="tiny muted">Savings</div>'; _savDivDone=true; }
     return _pre+_h+`</div>`;
-  }).join("") + '</div>'; }
+  }).join("") + _addBox + '</div>'; }
 
 }
 
+let EDIT_CATS=false;
+function toggleEditCats(){ EDIT_CATS=!EDIT_CATS; const b=document.getElementById("editCatsBtn"); if(b) b.textContent=EDIT_CATS?"Done":"Manage"; renderDash(); }
 function dashCatComplete(d){ if(isFloorName(d.c)) return false; const c=catByName(d.c); const flexi=c?isFlex(c):false; return (!flexi) && d.target>0 && d.net>=d.target-1; }
 function dashCatRank(d){ if(isFloorName(d.c)) return 2; return dashCatComplete(d)?1:0; }
 function drawChart(data){
@@ -1719,6 +1768,7 @@ let FLOW="out";
 function setFlow(f){ FLOW=f; document.querySelectorAll("#flowSeg button").forEach(b=>{ b.classList.toggle("on",b.dataset.flow===f); b.classList.toggle("in",f==="in"); b.classList.toggle("out",f==="out"); });
   // smart default category
   document.getElementById("aCat").value = f==="in"?"Wages":"Food & Drink";
+  const _cw=document.getElementById("aCCWrap"); if(_cw) _cw.style.display=(f==="out")?"block":"none";
 }
 function fillCatSelect(sel,withAll,includeDisabled){
   const cs = includeDisabled ? allCats() : activeCats();
@@ -1737,7 +1787,7 @@ function addTx(){
   const cat=document.getElementById("aCat").value;
   const desc=document.getElementById("aDesc").value.trim();
   const signed = FLOW==="in"? amt : -amt;
-  DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,6), date, desc:desc||cat, amount:signed, category:cat, byId:CURRENT?CURRENT.id:null, byName:curName(), priv:document.getElementById("aPriv").checked});
+  DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,6), date, desc:desc||cat, amount:signed, category:cat, byId:CURRENT?CURRENT.id:null, byName:curName(), priv:document.getElementById("aPriv").checked, cc:(FLOW==="out" && document.getElementById("aCC") && document.getElementById("aCC").checked)?1:0});
   if(document.getElementById("aRec").checked){
     const rid="r"+Date.now()+Math.random().toString(36).slice(2,6);
     DB.recurring.push({id:rid, desc:desc||cat, amount:amt, flow:FLOW, category:cat, freq:document.getElementById("aFreq").value, anchor:date});
@@ -1748,6 +1798,7 @@ function addTx(){
   document.getElementById("aRec").checked=false; document.getElementById("aFreqWrap").style.display="none";
   document.getElementById("aPriv").checked=false;
   toast("Saved ✓");
+  closeAdd();
   refreshAll();
 }
 
@@ -1997,6 +2048,7 @@ function renderSettings(){
   populateIncomePickers();
   renderIncomeList();
   updRegEquiv();
+  updCcUI();
   renderUsers();
 }
 function populateIncomePickers(){
@@ -2092,19 +2144,52 @@ function renderCatCfg(){
     : "Set your monthly income to see how much is left to allocate.";
 }
 let CEDIT=null;
-function editCat(id){ const c=allCats().find(x=>x.id===id); if(!c) return; CEDIT=id; document.getElementById("ecName").value=c.name; document.getElementById("ecGroup").value=c.group; document.getElementById("ecFlex").checked=isFlex(c); document.getElementById("catModal").classList.add("on"); }
+function editCat(id){ const c=allCats().find(x=>x.id===id); if(!c) return; CEDIT=id;
+  document.getElementById("catModalTitle").textContent="Edit category";
+  document.getElementById("ecName").value=c.name;
+  document.getElementById("ecType").value=(c.group==="Savings"?"savings":(isFlex(c)?"flexible":"fixed"));
+  document.getElementById("ecAmount").value=(c.amount!=null?c.amount:"");
+  const mk=mkKey(new Date().getFullYear(),new Date().getMonth());
+  const ov=(DB.monthTargets&&DB.monthTargets[mk])?DB.monthTargets[mk][c.id]:null;
+  document.getElementById("ecMonthAmt").value=(ov!=null&&ov!==""?ov:"");
+  document.getElementById("ecFrom").value=c.activeFrom||""; document.getElementById("ecTo").value=c.activeTo||"";
+  document.getElementById("ecDelete").style.display="block";
+  document.getElementById("catModal").classList.add("on");
+}
+function editCatByName(name){ const c=catByName(name); if(c) editCat(c.id); }
+function openNewCat(){ CEDIT=null;
+  document.getElementById("catModalTitle").textContent="New category";
+  document.getElementById("ecName").value=""; document.getElementById("ecType").value="flexible";
+  document.getElementById("ecAmount").value=""; document.getElementById("ecMonthAmt").value="";
+  document.getElementById("ecFrom").value=""; document.getElementById("ecTo").value="";
+  document.getElementById("ecDelete").style.display="none";
+  document.getElementById("catModal").classList.add("on");
+}
+function delCatFromEditor(){ if(CEDIT && confirm("Delete this category? Its past transactions are kept.")){ const id=CEDIT; closeCatModal(); delCat(id); renderDash(); } }
 function closeCatModal(){ document.getElementById("catModal").classList.remove("on"); CEDIT=null; }
 function saveCatEdit(){
-  const c=allCats().find(x=>x.id===CEDIT); if(!c){ closeCatModal(); return; }
   const name=document.getElementById("ecName").value.trim();
-  const group=document.getElementById("ecGroup").value;
   if(!name){ toast("Enter a name"); return; }
-  if(name!==c.name && (catByName(name)||INCOME_CATS.indexOf(name)>=0)){ toast("That name already exists"); return; }
-  const old=c.name;
-  if(name!==old){ (DB.txns||[]).forEach(t=>{ if(t.category===old) t.category=name; }); (DB.recurring||[]).forEach(r=>{ if(r.category===old) r.category=name; }); }
-  c.name=name; c.group=group;
-  c.flex = (group==="Savings") ? false : !!document.getElementById("ecFlex").checked;
-  save(); closeCatModal(); syncCatSelects(); renderCatCfg(); renderDash(); toast("Saved ✓");
+  const type=document.getElementById("ecType").value;
+  const group = type==="savings"?"Savings":(type==="flexible"?"Wants":"Needs");
+  const flex = (type==="flexible");
+  const amt=parseFloat(document.getElementById("ecAmount").value);
+  const af=document.getElementById("ecFrom").value||"", at=document.getElementById("ecTo").value||"";
+  let c;
+  if(CEDIT){ c=allCats().find(x=>x.id===CEDIT); if(!c){ closeCatModal(); return; }
+    if(name!==c.name && (catByName(name)||INCOME_CATS.indexOf(name)>=0)){ toast("That name already exists"); return; }
+    const old=c.name; if(name!==old){ (DB.txns||[]).forEach(t=>{ if(t.category===old) t.category=name; }); (DB.recurring||[]).forEach(r=>{ if(r.category===old) r.category=name; }); }
+    c.name=name; c.group=group; c.flex=flex; if(!isNaN(amt)) c.amount=amt; c.activeFrom=af; c.activeTo=at;
+  } else {
+    if(catByName(name)||INCOME_CATS.indexOf(name)>=0){ toast("That name already exists"); return; }
+    if(!Array.isArray(DB.categories)) DB.categories=[];
+    c={id:"c"+Date.now()+Math.random().toString(36).slice(2,5), name, group, flex, amount:isNaN(amt)?0:amt, enabled:true, color:nextColor(), activeFrom:af, activeTo:at};
+    DB.categories.push(c);
+  }
+  const mkNow=mkKey(new Date().getFullYear(),new Date().getMonth()); const mo=document.getElementById("ecMonthAmt").value;
+  if(!DB.monthTargets) DB.monthTargets={}; if(!DB.monthTargets[mkNow]) DB.monthTargets[mkNow]={};
+  if(mo===""||mo==null){ delete DB.monthTargets[mkNow][c.id]; } else { DB.monthTargets[mkNow][c.id]=parseFloat(mo)||0; }
+  save(); closeCatModal(); syncCatSelects(); try{ renderCatCfg(); }catch(e){} renderDash(); toast("Saved ✓");
 }
 function setCatAmount(id,v){ const c=allCats().find(x=>x.id===id); if(c){ c.amount=parseFloat(v)||0; save(); renderCatCfg(); renderDash(); } }
 function populateMonthTargetPickers(){
@@ -3038,10 +3123,18 @@ function renderInvest(){
 }
 function refreshAll(){ renderDash(); renderRec(); updPendBadge(); updOrphanBadge(); if(document.getElementById("page-tx").classList.contains("on")) renderTx(); try{ checkLevelUp(); }catch(e){} try{ impUpdateResume(); }catch(e){} }
 function updOrphanBadge(){ const n=DB.txns?DB.txns.filter(isOrphan).length:0; const b=document.getElementById("orphanBadge"); if(b){ b.style.display=n>0?"flex":"none"; b.textContent=n; } }
+function openMore(){ const m=document.getElementById("moreModal"); if(m) m.classList.add("on"); }
+function closeMore(){ const m=document.getElementById("moreModal"); if(m) m.classList.remove("on"); }
+function openMonthlySheet(){ closeMore(); try{ renderRec(); }catch(e){} const m=document.getElementById("monthlySheet"); if(m) m.classList.add("on"); }
+function closeMonthlySheet(){ const m=document.getElementById("monthlySheet"); if(m) m.classList.remove("on"); }
+function openImportSheet(){ closeMore(); try{ impUpdateResume(); }catch(e){} const m=document.getElementById("importSheet"); if(m) m.classList.add("on"); }
+function closeImportSheet(){ const m=document.getElementById("importSheet"); if(m) m.classList.remove("on"); }
 function updPendBadge(){
   const n=pendingItems().length;
   const dot=document.getElementById("addDot"); if(dot) dot.style.display=n>0?"block":"none";
   const pd=document.getElementById("pendDot"); if(pd) pd.style.display=n>0?"inline-block":"none";
+  const md=document.getElementById("moreDot"); if(md) md.style.display=n>0?"inline-block":"none";
+  const ms=document.getElementById("moreDotSheet"); if(ms) ms.style.display=n>0?"inline-block":"none";
 }
 let toastT;
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),1600); }
