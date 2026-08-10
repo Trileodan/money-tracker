@@ -183,7 +183,6 @@ canvas{max-width:100%;}
 
   <!-- ============ DASHBOARD ============ -->
   <div class="page on" id="page-dash">
-    <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:6px"><button class="btn sec" style="width:auto;padding:6px 12px;position:relative" onclick="openMore()">⋯ More <span class="dot" id="moreDot" style="background:var(--red);display:none;margin-left:4px"></span></button></div>
     <p class="sub" id="dashSub" style="display:none"></p>
     <div id="backupNag" class="nag" style="display:none">
       <span id="backupNagTxt"></span>
@@ -217,13 +216,14 @@ canvas{max-width:100%;}
           <div class="muted tiny">Left to spend</div>
           <div class="bigfig" id="mbLeftover">£0</div>
         </div>
-        <button class="btn sec" style="width:auto;padding:8px 14px;flex:none;margin-top:6px" onclick="openAdd()">+ Add</button>
+        <button class="btn sec" style="width:auto;padding:8px 14px;flex:none;margin-top:6px" onclick="openAddIncome()">+ Income</button>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:12px"><span class="tiny muted" style="font-weight:700">Income received</span><span class="tiny muted"><b id="mbIncomeNow" style="color:var(--green)">£0</b> / <b id="mbIncomeMax">£0</b></span></div>
       <div class="bar" style="height:14px;margin-top:6px"><span id="mbIncomeBar" style="width:0%;background:var(--green)"></span></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:16px"><span class="tiny muted" style="font-weight:700">Payments this period</span><span class="tiny muted"><b id="mbSpendNow" style="color:var(--red)">£0</b> / <b id="mbSpendMax">£0</b></span></div>
       <div class="bar" style="height:14px;margin-top:6px"><span id="mbSpendBar" style="width:0%;background:var(--red)"></span></div>
       <div id="mbCcPending" class="tiny muted" style="display:none;margin-top:8px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"><span style="font-weight:700">Balance so far</span><span id="mbBalance" style="font-weight:800;font-size:18px">£0</span></div>
     </div>
     <div class="card" id="gradeCard" style="display:none">
       <div style="display:flex;align-items:center;gap:14px">
@@ -256,7 +256,9 @@ canvas{max-width:100%;}
 
     <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Spending by category</h2><button class="btn sec" style="width:auto;padding:5px 12px" id="editCatsBtn" onclick="toggleEditCats()">Manage</button></div>
     <p class="sub" id="targetNote">Tap a pot to add to it. Tap <b>Manage</b> to add or edit your categories.</p>
+    <div class="card" id="manageSummary" style="display:none;margin-bottom:10px;padding:12px"></div>
     <div class="card" id="catList"></div>
+    <div style="display:flex;justify-content:center;margin-top:14px"><button class="btn sec" style="width:auto;padding:8px 16px;position:relative" onclick="openMore()">⋯ More <span class="dot" id="moreDot" style="background:var(--red);display:none;margin-left:4px"></span></button></div>
     </div>
 
     <div id="trendSection" style="display:none">
@@ -274,12 +276,6 @@ canvas{max-width:100%;}
   <div class="modal" id="addModal">
     <div class="sheet">
       <h2 style="margin-top:0" id="addTitle">Add transaction</h2>
-      <div class="field">
-        <div class="seg" id="flowSeg">
-          <button class="on in" data-flow="in" onclick="setFlow('in')">Income</button>
-          <button data-flow="out" onclick="setFlow('out')">Outgoing</button>
-        </div>
-      </div>
       <div id="addPotStatus" class="tiny" style="display:none;margin-bottom:8px;font-weight:600"></div>
       <div class="field suggwrap"><label>Description</label><input id="aDesc" autocomplete="off" placeholder="e.g. Phone Bill, Coffee" oninput="descInput()" onblur="setTimeout(function(){var b=document.getElementById('descSugg');if(b)b.style.display='none';},150)"><div class="suggbox" id="descSugg"></div></div>
       <div class="field"><label>Amount (£)</label><input type="number" inputmode="decimal" id="aAmount" placeholder="0.00" step="0.01"></div>
@@ -301,11 +297,6 @@ canvas{max-width:100%;}
         </label>
         <p class="note" style="margin:6px 0 0">Counts toward the category straight away, but only leaves your "left to spend" when the card payment goes out next month (a month in arrears).</p>
       </div>
-      <div class="field">
-        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
-          <input type="checkbox" id="aPriv" style="width:auto"> Hide details from other users
-        </label>
-      </div>
       <button class="btn sec" id="addViewTx" style="display:none;width:100%;margin-bottom:8px" onclick="viewAddCat()">View transactions</button>
       <div class="row">
         <button class="btn sec" onclick="closeAdd()">Cancel</button>
@@ -317,6 +308,7 @@ canvas{max-width:100%;}
   <!-- ============ TRANSACTIONS ============ -->
   <div class="page" id="page-tx">
     <h1>Transactions</h1>
+    <div class="field" style="margin-bottom:10px"><input id="txSearch" type="search" placeholder="Search by name…" oninput="renderTx()" autocomplete="off"></div>
     <div class="row">
       <div class="field" style="margin-bottom:10px"><select id="txFilter" onchange="renderTx()"></select></div>
       <div class="field" style="margin-bottom:10px"><select id="txPeriod" onchange="onTxPeriodChange()"></select></div>
@@ -342,11 +334,13 @@ canvas{max-width:100%;}
     <div class="periods" id="famPeriodSel"></div>
     <div id="famYearPick" style="display:none" class="card"><div><label>Year</label><select id="famYvSel" onchange="applyFamYear()"></select></div></div>
     <div id="famMonthPick" style="display:none" class="card"><div class="row"><div><label>Month</label><select id="famMoMonth" onchange="applyFamMonthly()"></select></div><div><label>Year</label><select id="famMoYear" onchange="applyFamMonthly()"></select></div></div></div>
-    <div class="tiles">
-      <div class="tile"><div class="lab">Income</div><div class="val pos" id="famIncome">£0</div></div>
-      <div class="tile"><div class="lab">Spending</div><div class="val neg" id="famSpend">£0</div></div>
-      <div class="tile"><div class="lab">Left over</div><div class="val" id="famNet">£0</div></div>
-      <div class="tile"><div class="lab">Into savings</div><div class="val" id="famSave">£0</div></div>
+    <div class="card" id="famBars" style="display:none">
+      <div style="min-width:0"><div class="muted tiny">Left over</div><div class="bigfig" id="fambLeftover">£0</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:12px"><span class="tiny muted" style="font-weight:700">Income received</span><span class="tiny muted"><b id="fambIncomeNow" style="color:var(--green)">£0</b></span></div>
+      <div class="bar" style="height:14px;margin-top:6px"><span id="fambIncomeBar" style="width:0%;background:var(--green)"></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:16px"><span class="tiny muted" style="font-weight:700">Payments this period</span><span class="tiny muted"><b id="fambSpendNow" style="color:var(--red)">£0</b> / <b id="fambSpendMax">£0</b></span></div>
+      <div class="bar" style="height:14px;margin-top:6px"><span id="fambSpendBar" style="width:0%;background:var(--red)"></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"><span style="font-weight:700">Into savings</span><span id="fambSave" style="font-weight:800;font-size:18px">£0</span></div>
     </div>
     <div class="card" id="famGrade" style="display:none">
       <div style="display:flex;align-items:center;gap:14px">
@@ -387,7 +381,7 @@ canvas{max-width:100%;}
       <canvas id="famChart" height="200"></canvas>
       <div class="legend" id="famLegend"></div>
     </div>
-    <p class="sub" style="margin-bottom:6px">Tap a row to see who spent what.</p>
+    <p class="sub" style="margin-bottom:6px">Tap a category to see the % each person contributed.</p>
     <div class="card" id="famList"></div>
     <div class="card" style="margin-top:14px">
       <h2 style="margin-top:2px">Sharing</h2>
@@ -404,7 +398,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 84 · cash flow tab</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 90 · settings tidy</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -440,54 +434,6 @@ canvas{max-width:100%;}
         <div class="field"><label>Default for new payments</label><select id="ccDefaultIn" onchange="saveCcSettings()"><option value="balance">Pay from balance</option><option value="credit">Pay on credit card</option></select></div>
       </div>
     </div>
-    <div class="acc" id="accCats">
-      <div class="acc-head" onclick="toggleAcc('accCats')"><span>Categories &amp; budgets</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
-      <div class="acc-body">
-        <p class="note">Set a £ amount for each category. Needs &amp; Wants are spending limits (the bar turns red if you go over); Savings are minimum goals (bar stays green). Disable a category to hide it from the dashboard and pie chart — its past entries are kept and you can re-enable it any time.</p>
-        <p class="tiny" id="allocSummary" style="margin:8px 0 2px;font-weight:600"></p>
-        <div id="catCfg" style="margin-top:6px"></div>
-        <div style="margin-top:12px">
-          <label>Add a category</label>
-          <div class="row">
-            <div style="flex:2"><input id="newCatName" placeholder="Category name"></div>
-            <div><select id="newCatGroup"><option>Needs</option><option>Wants</option><option>Savings</option></select></div>
-          </div>
-          <button class="btn sec" style="margin-top:8px" onclick="addCat()">Add category</button>
-        </div>
-      </div>
-    </div>
-    <div class="acc" id="accMonthTargets">
-      <div class="acc-head" onclick="toggleAcc('accMonthTargets')"><span>Adjust a month's targets</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
-      <div class="acc-body">
-        <p class="note">Set one-off targets for a specific month — handy when you know you'll over- or under-spend somewhere. Leave a box blank to use the normal base target. Your base plan isn't changed, and only that month is affected.</p>
-        <div class="row" style="margin-top:6px">
-          <div><label>Month</label><select id="mtMonth" onchange="renderMonthTargets()"></select></div>
-          <div><label>Year</label><select id="mtYear" onchange="renderMonthTargets()"></select></div>
-        </div>
-        <p class="tiny" id="mtSummary" style="margin:10px 0 2px;font-weight:600"></p>
-        <div id="mtCfg" style="margin-top:6px"></div>
-        <button class="btn sec" style="margin-top:12px" onclick="clearMonthTargets()">Clear this month's adjustments</button>
-      </div>
-    </div>
-    <div class="acc" id="usersCard">
-      <div class="acc-head" onclick="toggleAcc('usersCard')"><span>Users &amp; sign-in</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
-      <div class="acc-body">
-        <p class="note" id="usersNote"></p>
-        <div id="usersList" style="margin-top:8px"></div>
-        <div id="addUserWrap" style="margin-top:10px;display:none">
-          <div class="row">
-            <div><label>New username</label><input id="newUserName"></div>
-            <div><label>Password</label><input id="newUserPw" type="password"></div>
-          </div>
-          <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;color:var(--txt);letter-spacing:0;margin-top:8px">
-            <input type="checkbox" id="newUserAdmin" style="width:auto"> Make this user an admin
-          </label>
-          <button class="btn sec" style="margin-top:8px" onclick="addUser()">Add user</button>
-        </div>
-        <button class="btn" style="margin-top:10px" onclick="changeMyPw()">Change my password</button>
-        <button class="btn sec" style="margin-top:8px" onclick="logout()">Log out</button>
-      </div>
-    </div>
     <div class="acc" id="accData">
       <div class="acc-head" onclick="toggleAcc('accData')"><span>Your data</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -509,7 +455,7 @@ canvas{max-width:100%;}
 
   <!-- ============ INVESTMENT PLANNER ============ -->
   <div class="page" id="page-invest">
-    <h1>Goals</h1>
+    <h1>Savings</h1>
     <div class="seg" id="goalsSeg" style="margin-bottom:12px">
       <button class="on" data-gsub="savings" onclick="goalsSub('savings')">Savings</button>
       <button data-gsub="invest" onclick="goalsSub('invest')">Investments</button>
@@ -520,19 +466,20 @@ canvas{max-width:100%;}
       <div class="card">
         <h2 style="margin-top:2px">Where you're at</h2>
         <div class="muted tiny">Current savings</div>
-        <div class="bigfig" id="savTotal">£0</div>
+        <div class="bigfig" id="savTotal" style="color:var(--green)">£0</div>
         <div id="savGoal" style="margin-top:12px"></div>
       </div>
       <div class="card" id="savPotsCard">
-        <h2 style="margin-top:2px">Savings pots</h2>
-        <p class="note">Split your savings into named pots (holiday, emergency, car…). Give a pot a starting amount, then whenever you log a <b>Savings</b> transaction and name it after a pot (e.g. description “Holiday”), that amount is added to the pot automatically — and still counts toward your overall savings.</p>
+        <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Savings pots</h2><button class="btn sec" style="width:auto;padding:5px 12px" id="potsManageBtn" onclick="togglePotsManage()">Manage</button></div>
         <div id="savPotsList" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px"></div>
         <div id="savPotsSummary" class="tiny muted" style="margin-top:8px"></div>
-        <div class="row" style="margin-top:10px">
-          <div><label>Pot name</label><input id="savPotName" placeholder="e.g. Holiday"></div>
-          <div><label>Amount (£)</label><input type="number" id="savPotAmt" inputmode="decimal" placeholder="£"></div>
+        <div id="savPotAddWrap" style="display:none">
+          <div class="row" style="margin-top:10px">
+            <div><label>Pot name</label><input id="savPotName" placeholder="e.g. Holiday"></div>
+            <div><label>Amount (£)</label><input type="number" id="savPotAmt" inputmode="decimal" placeholder="£"></div>
+          </div>
+          <button class="btn sec" style="margin-top:8px" onclick="addSavPot()">Add pot</button>
         </div>
-        <button class="btn sec" style="margin-top:8px" onclick="addSavPot()">Add pot</button>
       </div>
       <div class="card">
         <h2 style="margin-top:2px">Savings goals</h2>
@@ -617,18 +564,6 @@ canvas{max-width:100%;}
     </div>
 
     <div id="gsub-streaks" style="display:none">
-      <div class="card" id="xpCard">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
-          <span style="font-weight:800;font-size:22px" id="xpLevel">Level 1</span>
-          <span class="tiny muted" id="xpTotal">0 XP total</span>
-        </div>
-        <div class="bar" style="height:12px;margin-top:10px"><span id="xpBar" style="width:0%;background:var(--accent)"></span></div>
-        <div class="tiny muted" style="margin-top:6px" id="xpInto">0 / 500 XP to Level 2</div>
-      </div>
-      <div class="acc" id="accXpBreak">
-        <div class="acc-head" onclick="toggleAcc('accXpBreak')"><span>Where your XP came from</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
-        <div class="acc-body"><div id="xpBreak"></div></div>
-      </div>
       <div class="card">
         <h2 style="margin-top:2px">Last 12 months</h2>
         <p class="note">Your monthly grade for each of the past 12 months. Tap a month to see what made up the score.</p>
@@ -695,7 +630,7 @@ canvas{max-width:100%;}
   <button class="on" data-tab="dash" onclick="go('dash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h8V3H3zM13 21h8V8h-8zM3 21h8v-5H3z"/></svg>Dashboard</button>
   <button data-tab="tx" onclick="go('tx')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History<span class="badge" id="orphanBadge" style="display:none">0</span></button>
   <button data-tab="cash" onclick="go('cash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>Cash flow</button>
-  <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none"/></svg>Goals</button>
+  <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none"/></svg>Savings</button>
   <button data-tab="family" onclick="go('family')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M4 20c0-3 2.5-5 5-5s5 2 5 5"/><path d="M16 5.5a3 3 0 0 1 0 5.9"/><path d="M17.5 15c1.9.5 3.5 2 3.5 5"/></svg>Family</button>
   <button data-tab="set" onclick="go('set')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
 </div>
@@ -1622,6 +1557,7 @@ function renderDash(){
       document.getElementById("mbSpendNow").textContent=gbp(_payNoSav);
       document.getElementById("mbSpendMax").textContent=gbp(_incTot);
       document.getElementById("mbSpendBar").style.width=Math.max(0,Math.min(100,_payNoSav/_incTot*100))+"%";
+      const _mbb=document.getElementById("mbBalance"); if(_mbb){ const _b=_incRec-_payNoSav; _mbb.textContent=gbp(_b); _mbb.style.color=_b<0?"var(--red)":"var(--green)"; }
     } }
   }catch(e){}
   renderGrade();
@@ -1648,6 +1584,17 @@ function renderDash(){
   }
   drawChart(chartData);
 
+  // manage-mode summary: total budgeted vs expected income + remaining to spend
+  const _msum=document.getElementById("manageSummary");
+  if(_msum){ if(EDIT_CATS){ _msum.style.display="block";
+      let _tBud=0,_tRemain=0;
+      activeCats().forEach(c=>{ const _t=effTargetForPeriod(c)||0; const _net=Math.max(0,-(byCat[c.name]||0)); _tBud+=_t; _tRemain+=Math.max(0,_t-_net); });
+      const _un=targetBase-_tBud, _over=_un<0;
+      _msum.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-weight:700">Budgeted</span><span><b>'+gbp0(_tBud)+'</b> <span class="tiny muted">of '+gbp0(targetBase)+' income</span></span></div>'+
+        '<div class="tiny" style="margin-top:5px;font-weight:700;color:'+(_over?"var(--red)":"var(--green)")+'">'+(_over?("Over your income by "+gbp0(-_un)):(gbp0(_un)+" left to budget"))+'</div>'+
+        '<div class="tiny muted" style="margin-top:5px">'+gbp0(_tRemain)+' still to spend across your categories</div>';
+    } else { _msum.style.display="none"; } }
   // category list
   const list=document.getElementById("catList");
   const _addBox = EDIT_CATS ? '<div class="strbox" onclick="openNewCat()" style="grid-column:1 / -1;display:flex;align-items:center;justify-content:center;border:2px dashed var(--line);color:var(--muted);min-height:54px"><span style="font-size:18px;font-weight:800">+ Add category</span></div>' : '';
@@ -1855,7 +1802,7 @@ function addTx(){
   const cat=document.getElementById("aCat").value;
   const desc=document.getElementById("aDesc").value.trim();
   const signed = FLOW==="in"? amt : -amt;
-  DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,6), date, desc:desc||cat, amount:signed, category:cat, byId:CURRENT?CURRENT.id:null, byName:curName(), priv:document.getElementById("aPriv").checked, cc:(FLOW==="out" && document.getElementById("aCC") && document.getElementById("aCC").checked)?1:0});
+  DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,6), date, desc:desc||cat, amount:signed, category:cat, byId:CURRENT?CURRENT.id:null, byName:curName(), cc:(FLOW==="out" && document.getElementById("aCC") && document.getElementById("aCC").checked)?1:0});
   if(document.getElementById("aRec").checked){
     const rid="r"+Date.now()+Math.random().toString(36).slice(2,6);
     DB.recurring.push({id:rid, desc:desc||cat, amount:amt, flow:FLOW, category:cat, freq:document.getElementById("aFreq").value, anchor:date});
@@ -1864,7 +1811,6 @@ function addTx(){
   save();
   document.getElementById("aAmount").value=""; document.getElementById("aDesc").value="";
   document.getElementById("aRec").checked=false; document.getElementById("aFreqWrap").style.display="none";
-  document.getElementById("aPriv").checked=false;
   toast("Saved ✓");
   closeAdd();
   refreshAll();
@@ -2011,8 +1957,9 @@ function renderTx(){
   // orphans (entries whose category was deleted) — always shown at the top, awaiting reallocation
   const orphans=[...DB.txns].filter(isOrphan).sort((a,b)=>a.date<b.date?1:-1);
   let tx=[...DB.txns].filter(t=>!isOrphan(t));
-  if(f) tx=tx.filter(t=>t.category===f);
-  if(rg) tx=tx.filter(t=>{ const d=parse(t.date); return d>=rg.from && d<=rg.to; });
+  const _q=((document.getElementById("txSearch")||{}).value||"").trim().toLowerCase();
+  if(_q){ tx=tx.filter(t=>((t.desc||"")+" "+(t.category||"")).toLowerCase().indexOf(_q)>=0); }
+  else { if(f) tx=tx.filter(t=>t.category===f); if(rg) tx=tx.filter(t=>{ const d=parse(t.date); return d>=rg.from && d<=rg.to; }); }
   const sortBy=(document.getElementById("txSort")||{}).value||"date";
   if(sortBy==="amount") tx.sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount) || (a.date<b.date?1:-1));
   else tx.sort((a,b)=>a.date<b.date?1:-1);
@@ -2179,6 +2126,7 @@ function delIncome(id){
   save(); renderIncomeList(); renderCatCfg(); updRegEquiv(); renderDash();
 }
 function renderCatCfg(){
+  if(!document.getElementById("catCfg")) return;
   const income=currentMonthlyIncome();
   let html="";
   GROUPS.forEach(g=>{
@@ -2504,6 +2452,8 @@ function potContrib(pt){
 }
 function potBalance(pt){ return (+pt.amount||0)+potContrib(pt); }
 let POT_OPEN=new Set();
+let POTS_MANAGE=false;
+function togglePotsManage(){ POTS_MANAGE=!POTS_MANAGE; const w=document.getElementById("savPotAddWrap"); if(w) w.style.display=POTS_MANAGE?"block":"none"; const b=document.getElementById("potsManageBtn"); if(b) b.textContent=POTS_MANAGE?"Done":"Manage"; }
 function togglePotBox(id){ if(POT_OPEN.has(id)) POT_OPEN.delete(id); else POT_OPEN.add(id); renderSavPots(); }
 function renderSavPots(){
   const el=document.getElementById("savPotsList"); if(!el) return;
@@ -3388,10 +3338,16 @@ function renderFamily(){
     ? `<span class="tiny">You <span class="muted">· live</span></span>`
     : `<span class="tiny" style="margin-right:10px">${s.name} <span class="muted">· ${fmtDateY(s.date)}</span> <a onclick="famRemovePartner('${(s.name||"").replace(/'/g,"\\'")}')" style="color:var(--red);cursor:pointer">✕</a></span>`
   ).join(" ");
-  document.getElementById("famIncome").textContent=gbp(A.income);
-  document.getElementById("famSpend").textContent=gbp(A.spend);
-  const netEl=document.getElementById("famNet"); netEl.textContent=gbp(A.net); netEl.className="val "+(A.net>=0?"pos":"neg");
-  document.getElementById("famSave").textContent=gbp(A.saved);
+  const _fi=A.income||0, _fs=A.spend||0, _fbar=document.getElementById("famBars");
+  if(_fbar){ if(!(_fi>0)){ _fbar.style.display="none"; } else { _fbar.style.display="block";
+    const _lo=document.getElementById("fambLeftover"), _bal=_fi-_fs; _lo.textContent=gbp(_bal); _lo.style.color=_bal<0?"var(--red)":"var(--green)";
+    document.getElementById("fambIncomeNow").textContent=gbp(_fi);
+    document.getElementById("fambIncomeBar").style.width="100%";
+    document.getElementById("fambSpendNow").textContent=gbp(_fs);
+    document.getElementById("fambSpendMax").textContent=gbp(_fi);
+    document.getElementById("fambSpendBar").style.width=Math.max(0,Math.min(100,_fs/_fi*100))+"%";
+    document.getElementById("fambSave").textContent=gbp(A.saved);
+  } }
   // Total family savings (actual balances — moves up and down)
   const _fsT=document.getElementById("famSavTotal"); if(_fsT) _fsT.textContent=gbp(familySavingsTotal());
   const _fsB=document.getElementById("famSavBreak");
@@ -3424,15 +3380,15 @@ function renderFamily(){
   const totalSpend=A.spend||0;
   famDrawChart(rows.filter(r=>r.total>0).map((r,i)=>({label:r.label,total:r.total,col: FAM_MODE==="groups"?(GROUP_COLORS[r.label]||"#64748b"):FAMPAL[i%FAMPAL.length]})), totalSpend);
   const listEl=document.getElementById("famList");
-  listEl.innerHTML = rows.length ? rows.map(r=>{
+  listEl.innerHTML = rows.length ? ('<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + rows.map((r,i)=>{
     const open=FAM_OPEN.has(r.key), pctOfSpend=totalSpend>0?Math.round(r.total/totalSpend*100):0;
-    let h=`<div class="famrow"><div onclick="toggleFamRow('${r.key.replace(/'/g,"\\'")}')" style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;cursor:pointer">
-        <span style="font-weight:700">${r.label}</span>
-        <span><b>${gbp(r.total)}</b> <span class="tiny muted">${pctOfSpend}%</span></span>
-      </div>`;
-    if(open){ h+=r.parts.map(pp=>{ const pc=r.total>0?Math.round(pp.amt/r.total*100):0; return `<div class="tiny" style="display:flex;justify-content:space-between;margin-top:6px"><span class="muted">${pp.name}</span><span>${gbp(pp.amt)} · ${pc}%</span></div>`; }).join(""); }
+    const col = FAM_MODE==="groups"?(GROUP_COLORS[r.label]||"#64748b"):FAMPAL[i%FAMPAL.length];
+    let h=`<div class="strbox" onclick="toggleFamRow('${r.key.replace(/'/g,"\\'")}')" style="cursor:pointer;${open?'grid-column:1 / -1;':''}">
+      <div class="tiny" style="font-weight:700;display:flex;align-items:center;gap:6px;min-width:0"><span class="dot" style="background:${col};flex:none"></span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.label}</span></div>
+      <div style="margin-top:6px"><span style="font-size:18px;font-weight:800">${gbp0(r.total)}</span> <span class="tiny muted">${pctOfSpend}%</span></div>`;
+    if(open){ h+='<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">'+r.parts.map(pp=>{ const pc=r.total>0?Math.round(pp.amt/r.total*100):0; return `<div class="tiny" style="display:flex;justify-content:space-between;margin-top:5px"><span class="muted">${pp.name}</span><span><b>${pc}%</b> · ${gbp(pp.amt)}</span></div>`; }).join("")+'</div>'; }
     return h+`</div>`;
-  }).join("") : '<div class="empty">No spending in this period yet.</div>';
+  }).join("") + '</div>') : '<div class="empty">No spending in this period yet.</div>';
 }
 function saveFamName(){ familyInit(); DB.family.myName=document.getElementById("famName").value.trim(); save(); renderFamily(); }
 function openFamShare(){ document.getElementById("famShareText").value=encodeSummary(famSelfSummary()); document.getElementById("famShareModal").classList.add("on"); famRenderQR(); }
@@ -3569,6 +3525,7 @@ function logout(){ CURRENT=null; try{ localStorage.removeItem(SS); }catch(e){} r
 
 function adminCount(){ return DB.users.filter(u=>u.isAdmin).length; }
 function renderUsers(){
+  if(!document.getElementById("usersList")) return;
   const admin = !!(CURRENT && CURRENT.isAdmin);
   document.getElementById("usersNote").textContent = admin
     ? "You're an admin. Add or edit users below. Every entry is tagged with who added or edited it."
