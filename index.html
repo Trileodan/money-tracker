@@ -398,7 +398,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 90 · settings tidy</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 91 · manage income basis</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -1538,6 +1538,7 @@ function renderDash(){
   else if(PERIOD.key==="monthly"){ const sy=(PERIOD.selY==null?_y:PERIOD.selY), sm=(PERIOD.selM==null?_m:PERIOD.selM); base=incomeForMonth(sy,sm); }
   // (Custom has no fixed base — it uses the income actually logged.)
   let targetBase = base + income;                          // income = all logged income in the period
+  let _dashIncome=targetBase;   // headline income basis; set to actual pay this period in the bars block below
   const fullBasis = (PERIOD.key==="month"||PERIOD.key==="ytd"||PERIOD.key==="yearview"||PERIOD.key==="monthly");
 
   // period-aware income / payments bars
@@ -1546,7 +1547,7 @@ function renderDash(){
     if(PERIOD.key==="month"){ const _e=new Date(); _toFull=new Date(_e.getFullYear(),_e.getMonth()+1,0); _toFull.setHours(23,59,59,999); }
     const _salTot=salaryBetween(_pr.from,_toFull,false), _salRec=salaryBetween(_pr.from,_toFull,true);
     let _addl=0; (DB.txns||[]).forEach(t=>{ if(t.amount>0 && t.category==="Other Income"){ const dt=parse(t.date); if(dt>=_pr.from && dt<=_pr.to) _addl+=t.amount; } });
-    const _incTot=_salTot+_addl, _incRec=Math.min(_incTot,_salRec+_addl);
+    const _incTot=_salTot+_addl, _incRec=Math.min(_incTot,_salRec+_addl); _dashIncome=_incTot;
     const _payNoSav=paymentsOut(_pr.from,_pr.to);
     const _left=_incTot-_payNoSav, _mb=document.getElementById("monthBars");
     if(_mb){ if(!(_incTot>0)){ _mb.style.display="none"; } else { _mb.style.display="block";
@@ -1589,9 +1590,9 @@ function renderDash(){
   if(_msum){ if(EDIT_CATS){ _msum.style.display="block";
       let _tBud=0,_tRemain=0;
       activeCats().forEach(c=>{ const _t=effTargetForPeriod(c)||0; const _net=Math.max(0,-(byCat[c.name]||0)); _tBud+=_t; _tRemain+=Math.max(0,_t-_net); });
-      const _un=targetBase-_tBud, _over=_un<0;
+      const _un=_dashIncome-_tBud, _over=_un<0;
       _msum.innerHTML =
-        '<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-weight:700">Budgeted</span><span><b>'+gbp0(_tBud)+'</b> <span class="tiny muted">of '+gbp0(targetBase)+' income</span></span></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-weight:700">Budgeted</span><span><b>'+gbp0(_tBud)+'</b> <span class="tiny muted">of '+gbp0(_dashIncome)+' income</span></span></div>'+
         '<div class="tiny" style="margin-top:5px;font-weight:700;color:'+(_over?"var(--red)":"var(--green)")+'">'+(_over?("Over your income by "+gbp0(-_un)):(gbp0(_un)+" left to budget"))+'</div>'+
         '<div class="tiny muted" style="margin-top:5px">'+gbp0(_tRemain)+' still to spend across your categories</div>';
     } else { _msum.style.display="none"; } }
