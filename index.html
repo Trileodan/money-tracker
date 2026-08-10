@@ -191,15 +191,6 @@ canvas{max-width:100%;}
         <button class="btn sec" style="width:auto;padding:8px 12px;font-size:13px" onclick="dismissNag()">Later</button>
       </div>
     </div>
-    <div class="card" id="monthBars" style="display:none">
-      <div class="muted tiny">Expected income this month</div>
-      <div class="bigfig" id="mbTotal">£0</div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:14px"><span class="tiny muted" style="font-weight:700">Income received</span><span class="tiny muted"><b id="mbIncomeNow" style="color:var(--green)">£0</b> / <b id="mbIncomeMax">£0</b></span></div>
-      <div class="bar" style="height:14px;margin-top:6px"><span id="mbIncomeBar" style="width:0%;background:var(--green)"></span></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:16px"><span class="tiny muted" style="font-weight:700">Payments this month</span><span class="tiny muted"><b id="mbSpendNow" style="color:var(--red)">£0</b> / <b id="mbSpendMax">£0</b></span></div>
-      <div class="bar" style="height:14px;margin-top:6px"><span id="mbSpendBar" style="width:0%;background:var(--red)"></span></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px"><span style="font-weight:700">Left to spend</span><span id="mbLeftover" style="font-weight:800;font-size:20px">£0</span></div>
-    </div>
     <div class="periods" id="periodSel"></div>
     <div id="customRange" style="display:none" class="card">
       <div class="row">
@@ -219,6 +210,19 @@ canvas{max-width:100%;}
     </div>
 
     <div id="dashMain">
+    <div class="card" id="monthBars" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="min-width:0">
+          <div class="muted tiny">Left to spend</div>
+          <div class="bigfig" id="mbLeftover">£0</div>
+        </div>
+        <button class="btn sec" style="width:auto;padding:8px 14px;flex:none;margin-top:6px" onclick="openAddIncome()">+ Income</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:12px"><span class="tiny muted" style="font-weight:700">Income received</span><span class="tiny muted"><b id="mbIncomeNow" style="color:var(--green)">£0</b> / <b id="mbIncomeMax">£0</b></span></div>
+      <div class="bar" style="height:14px;margin-top:6px"><span id="mbIncomeBar" style="width:0%;background:var(--green)"></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:16px"><span class="tiny muted" style="font-weight:700">Payments this period</span><span class="tiny muted"><b id="mbSpendNow" style="color:var(--red)">£0</b> / <b id="mbSpendMax">£0</b></span></div>
+      <div class="bar" style="height:14px;margin-top:6px"><span id="mbSpendBar" style="width:0%;background:var(--red)"></span></div>
+    </div>
     <div class="card" id="gradeCard" style="display:none">
       <div style="display:flex;align-items:center;gap:14px">
         <div id="gradeLetter" style="font-size:32px;font-weight:800;letter-spacing:-1px;min-width:62px;text-align:center;border-radius:14px;padding:10px 4px"></div>
@@ -414,7 +418,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 76 · fixed &amp; flexible pots</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 77 · period bars &amp; left-to-spend</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -1395,6 +1399,26 @@ function renderBank(){
   renderBankBalList();
   // payday now lives in the income section (pay schedule)
 }
+function salaryBetween(from,to,capToday){
+  payInit(); const f=DB.pay.freq||"monthly";
+  const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const lo=new Date(from.getFullYear(),from.getMonth(),from.getDate());
+  let hi=new Date(to.getFullYear(),to.getMonth(),to.getDate());
+  if(capToday && hi>today) hi=today;
+  if(hi<lo) return 0;
+  let sum=0, guard=0;
+  if(f==="monthly"){
+    const pd=DB.pay.payDay||25;
+    let d=new Date(lo.getFullYear(),lo.getMonth(),1);
+    for(; d<=hi && guard++<1200; d.setMonth(d.getMonth()+1)){ const y=d.getFullYear(),m=d.getMonth(),dim=new Date(y,m+1,0).getDate(); const pay=new Date(y,m,Math.min(pd,dim)); if(pay<lo||pay>hi) continue; sum+=payAmountForMonth(y,m); }
+  } else {
+    const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0;
+    let d=new Date(anchor); while(d>lo && guard++<8000) d.setDate(d.getDate()-step);
+    for(; d<=hi && guard++<8000; d.setDate(d.getDate()+step)){ if(d<lo||d>hi) continue; sum+=payAmountForMonth(d.getFullYear(),d.getMonth()); }
+  }
+  return sum;
+}
+function openAddIncome(){ try{ go("add"); setFlow("in"); const c=document.getElementById("aCat"); if(c){ if([...c.options].some(o=>o.value==="Other Income")) c.value="Other Income"; } const a=document.getElementById("aAmount"); if(a) a.focus(); }catch(e){} }
 function salaryInMonth(y,m){ payInit(); const f=DB.pay.freq||"monthly"; const mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0); if(f==="monthly"){ return payAmountForMonth(y,m); } const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0; let d=new Date(anchor),guard=0,sum=0; while(d>mStart && guard++<5000) d.setDate(d.getDate()-step); for(; d<=mEnd && guard++<5000; d.setDate(d.getDate()+step)){ if(d<mStart) continue; sum+=payAmountForMonth(y,m); } return sum; }
 function salaryReceivedInMonthToDate(y,m){ payInit(); const f=DB.pay.freq||"monthly"; const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); const mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0); const upto=today<mEnd?today:mEnd; if(f==="monthly"){ const pd=DB.pay.payDay||25, dim=mEnd.getDate(), payDate=new Date(y,m,Math.min(pd,dim)); return payDate<=upto?payAmountForMonth(y,m):0; } const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0; let d=new Date(anchor),guard=0,sum=0; while(d>mStart && guard++<5000) d.setDate(d.getDate()-step); for(; d<=mEnd && guard++<5000; d.setDate(d.getDate()+step)){ if(d<mStart||d>upto) continue; sum+=payAmountForMonth(y,m); } return sum; }
 function renderMonthBars(){
@@ -1418,7 +1442,6 @@ function renderMonthBars(){
 }
 function renderDash(){
   try{ renderBank(); }catch(e){}
-  try{ renderMonthBars(); }catch(e){}
   document.getElementById("dashSub").textContent = periodLabel();
   const isTrends = PERIOD.key==="trends";
   document.getElementById("dashMain").style.display = isTrends?"none":"";
@@ -1457,7 +1480,25 @@ function renderDash(){
   let targetBase = base + income;                          // income = all logged income in the period
   const fullBasis = (PERIOD.key==="month"||PERIOD.key==="ytd"||PERIOD.key==="yearview"||PERIOD.key==="monthly");
 
-  // top tiles replaced by the income / spending bars (renderMonthBars)
+  // period-aware income / payments bars
+  try{
+    const _pr=periodRange(); let _toFull=_pr.to;
+    if(PERIOD.key==="month"){ const _e=new Date(); _toFull=new Date(_e.getFullYear(),_e.getMonth()+1,0); _toFull.setHours(23,59,59,999); }
+    const _salTot=salaryBetween(_pr.from,_toFull,false), _salRec=salaryBetween(_pr.from,_toFull,true);
+    let _addl=0; (DB.txns||[]).forEach(t=>{ if(t.amount>0 && t.category==="Other Income"){ const dt=parse(t.date); if(dt>=_pr.from && dt<=_pr.to) _addl+=t.amount; } });
+    const _incTot=_salTot+_addl, _incRec=Math.min(_incTot,_salRec+_addl);
+    let _payNoSav=0; activeCats().forEach(c=>{ if(c.group==="Savings") return; const nt=-(byCat[c.name]||0); if(nt>0) _payNoSav+=nt; });
+    const _left=_incTot-_payNoSav, _mb=document.getElementById("monthBars");
+    if(_mb){ if(!(_incTot>0)){ _mb.style.display="none"; } else { _mb.style.display="block";
+      const lo=document.getElementById("mbLeftover"); lo.textContent=gbp(_left); lo.style.color=_left<0?"var(--red)":"var(--green)";
+      document.getElementById("mbIncomeNow").textContent=gbp(_incRec);
+      document.getElementById("mbIncomeMax").textContent=gbp(_incTot);
+      document.getElementById("mbIncomeBar").style.width=Math.max(0,Math.min(100,_incRec/_incTot*100))+"%";
+      document.getElementById("mbSpendNow").textContent=gbp(_payNoSav);
+      document.getElementById("mbSpendMax").textContent=gbp(_incTot);
+      document.getElementById("mbSpendBar").style.width=Math.max(0,Math.min(100,_payNoSav/_incTot*100))+"%";
+    } }
+  }catch(e){}
   renderGrade();
   renderObjectivesDash();
   // sort by amount spent desc
@@ -1503,13 +1544,13 @@ function renderDash(){
     } else {
       const _c=catByName(d.c), _fx=(_c?isFlex(_c):false);
       if(d.target<=0){ flag="no target"; fcls="ok"; fillCol="var(--green)"; }
-      else if(!_fx){ if(ratio>=1){ flag="paid ✓"; fcls="ok"; fillCol="#e8b923"; } else { flag=gbp(d.target-d.net)+" to pay"; fcls="ok"; fillCol="var(--green)"; } }
+      else if(!_fx){ if(d.net>=d.target-1){ flag="paid ✓"; fcls="ok"; fillCol="#e8b923"; } else { flag=gbp(d.target-d.net)+" to pay"; fcls="ok"; fillCol="var(--green)"; } }
       else { if(ratio>1){ flag="over aim · "+gbp(d.net-d.target); fcls="near"; fillCol="var(--amber)"; } else { flag="on track"; fcls="ok"; fillCol="var(--green)"; } }
       fillW=Math.min(100, d.target>0?ratio*100:(d.net>0?100:0));
     }
     const _open=DASH_OPEN.has(d.c), _bud=d.target, _paid=d.net, _esc=d.c.replace(/'/g,"\\'");
     const _catObj=catByName(d.c), _isFlex=(!isSav && _catObj)?isFlex(_catObj):false, _isFixed=(!isSav && !_isFlex);
-    const _complete=_isFixed && _bud>0 && _paid>=_bud-0.005;
+    const _complete=_isFixed && _bud>0 && _paid>=_bud-1;
     let _col,_tint,_border="";
     if(isSav){ if(_bud<=0){_col="var(--muted)";_tint="transparent";} else if(_paid>=_bud){_col="var(--green)";_tint="rgba(16,185,129,.13)";} else {_col="var(--amber)";_tint="rgba(245,158,11,.10)";} }
     else if(_isFixed){ if(_complete){_col="#e8b923";_tint="rgba(232,185,35,.13)";_border="border:2px solid #e8b923;";} else {_col="var(--green)";_tint=_bud>0?"rgba(16,185,129,.13)":"transparent";} }
@@ -1535,7 +1576,7 @@ function renderDash(){
 
 }
 
-function dashCatComplete(d){ if(isFloorName(d.c)) return false; const c=catByName(d.c); const flexi=c?isFlex(c):false; return (!flexi) && d.target>0 && d.net>=d.target-0.005; }
+function dashCatComplete(d){ if(isFloorName(d.c)) return false; const c=catByName(d.c); const flexi=c?isFlex(c):false; return (!flexi) && d.target>0 && d.net>=d.target-1; }
 function dashCatRank(d){ if(isFloorName(d.c)) return 2; return dashCatComplete(d)?1:0; }
 function drawChart(data){
   const ctx=document.getElementById("chart");
@@ -2431,7 +2472,8 @@ function streakStats(st){
   const created=st.created?parse(st.created):today;
   let run=0,best=0,guard=0, d=stPeriodRange(period,created).start;
   while(d<cur.start && guard++<800){ const r=stPeriodRange(period,d); const sp=stSpendIn(st,r.start,r.end); if(budget>0 && sp<=budget+0.005){ run++; if(run>best)best=run; } else run=0; d=new Date(r.end); d.setDate(d.getDate()+1); }
-  return {spent,budget,over,exact,remaining,period,count:run,best,active:!over,hasBudget:budget>0};
+  let matchedCount=0; { const s0=ymd(cur.start), e0=ymd(today); (DB.txns||[]).forEach(x=>{ if(x.amount>=0) return; if(!streakMatchesTxn(st,x)) return; if(x.date<s0||x.date>e0) return; matchedCount++; }); }
+  return {spent,budget,over,exact,remaining,period,count:run,best,active:!over,hasBudget:budget>0,matchedCount};
 }
 function streaksBrokenNamesInMonth(y,m){
   streaksInit(); const out=[]; if(!DB.streaks.length) return out;
@@ -2473,6 +2515,7 @@ function streakBoxHTML(st){
     const line = !s.hasBudget ? "Tap Edit to set a £ budget" : (s.over?("Over by "+gbp0(s.spent-s.budget)):(s.exact?"Right on budget":(gbp0(s.remaining)+" left this "+plab)));
     h+=`<div class="tiny" style="margin-top:8px;color:${col};font-weight:700">${line}</div>
       <div class="tiny muted" style="margin-top:4px">Streak: <b>${s.count}</b> ${plab}${s.count===1?"":"s"} under budget · best <b>${s.best}</b></div>
+      <div class="tiny muted" style="margin-top:2px">${s.matchedCount||0} matching payment${(s.matchedCount||0)===1?"":"s"} this ${plab}${(s.matchedCount||0)===0?" — check the category/keyword match":""}</div>
       <div class="tiny muted" style="margin-top:2px">${streakCriteria(st)}</div>
       <div class="catrow-btns" style="margin-top:8px">
         <button class="btn sec" onclick="event.stopPropagation();editStreak('${st.id}')">Edit</button>
