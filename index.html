@@ -217,7 +217,7 @@ canvas{max-width:100%;}
           <div class="muted tiny">Left to spend</div>
           <div class="bigfig" id="mbLeftover">£0</div>
         </div>
-        <button class="btn sec" style="width:auto;padding:8px 14px;flex:none;margin-top:6px" onclick="openAddIncome()">+ Income</button>
+        <button class="btn sec" style="width:auto;padding:8px 14px;flex:none;margin-top:6px" onclick="openAdd()">+ Add</button>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:12px"><span class="tiny muted" style="font-weight:700">Income received</span><span class="tiny muted"><b id="mbIncomeNow" style="color:var(--green)">£0</b> / <b id="mbIncomeMax">£0</b></span></div>
       <div class="bar" style="height:14px;margin-top:6px"><span id="mbIncomeBar" style="width:0%;background:var(--green)"></span></div>
@@ -299,7 +299,7 @@ canvas{max-width:100%;}
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
           <input type="checkbox" id="aCC" style="width:auto"> Paid on credit card
         </label>
-        <p class="note" style="margin:6px 0 0">Counts toward the category straight away, but only leaves your "left to spend" when your card payment goes out.</p>
+        <p class="note" style="margin:6px 0 0">Counts toward the category straight away, but only leaves your "left to spend" when the card payment goes out next month (a month in arrears).</p>
       </div>
       <div class="field">
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
@@ -404,7 +404,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 81 · credit card</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 84 · cash flow tab</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -430,8 +430,13 @@ canvas{max-width:100%;}
     <div class="acc" id="accCC">
       <div class="acc-head" onclick="toggleAcc('accCC')"><span>Credit card</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
-        <p class="note">When adding a payment you can mark it "Paid on credit card". It counts toward the category straight away, but only affects your left-to-spend on the day your card payment leaves your account.</p>
-        <div class="field"><label>Card payment day (day of the month it leaves)</label><input type="number" id="ccDayIn" min="1" max="28" inputmode="numeric" onchange="saveCcSettings()" style="max-width:120px"></div>
+        <p class="note">Mark a payment "Paid on credit card" when adding it. It counts toward the category straight away, but only affects your left-to-spend when the card payment leaves — a month in arrears (all of a month's card spend is paid on your card day the following month).</p>
+        <p class="note" style="margin-top:2px">Your card's billing cycle — used by the Cash Flow tab to know when your card payment leaves.</p>
+        <div class="row">
+          <div><label>Statement start day</label><input type="number" id="ccStartIn" min="1" max="31" inputmode="numeric" onchange="saveCcSettings()"></div>
+          <div><label>Statement end day</label><input type="number" id="ccEndIn" min="1" max="31" inputmode="numeric" onchange="saveCcSettings()"></div>
+          <div><label>Payment day</label><input type="number" id="ccPayIn" min="1" max="31" inputmode="numeric" onchange="saveCcSettings()"></div>
+        </div>
         <div class="field"><label>Default for new payments</label><select id="ccDefaultIn" onchange="saveCcSettings()"><option value="balance">Pay from balance</option><option value="credit">Pay on credit card</option></select></div>
       </div>
     </div>
@@ -654,11 +659,42 @@ canvas{max-width:100%;}
 
 </div>
 
+  <!-- ============ CASH FLOW ============ -->
+  <div class="page" id="page-cash">
+    <h1>Cash flow</h1>
+    <div class="card">
+      <div class="muted tiny">Balance right now (projected)</div>
+      <div class="bigfig" id="cashNow">£0</div>
+      <div class="tiny muted" id="cashAnchorNote" style="margin-top:4px"></div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:2px">Important dates</h2>
+      <p class="note">What you should have in your account on each date — after all scheduled income, bills and card payments up to then. It can't predict spontaneous spending, so keep logging as you go.</p>
+      <div id="cashDatesList" style="margin-top:6px"></div>
+      <div class="row" style="margin-top:10px">
+        <div><label>Add a date</label><input type="date" id="cashDateNew"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn sec" style="width:100%" onclick="addCashDate()">Add date</button></div>
+      </div>
+    </div>
+    <div class="acc" id="accCashBal">
+      <div class="acc-head" onclick="toggleAcc('accCashBal')"><span>Set your actual balance</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="acc-body">
+        <p class="note">Enter your real bank balance and its date — everything projects from here. Re-enter it whenever you like to re-anchor to reality.</p>
+        <div id="cashBalList" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:10px">
+          <div><label>Date</label><input type="date" id="cashBalDate"></div>
+          <div><label>Balance (£)</label><input type="number" id="cashBalAmt" inputmode="decimal" placeholder="£"></div>
+        </div>
+        <button class="btn sec" style="margin-top:8px" onclick="addCashBalance()">Save balance</button>
+      </div>
+    </div>
+  </div>
+
 <!-- TAB BAR -->
 <div class="tabbar" id="tabbar">
   <button class="on" data-tab="dash" onclick="go('dash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h8V3H3zM13 21h8V8h-8zM3 21h8v-5H3z"/></svg>Dashboard</button>
   <button data-tab="tx" onclick="go('tx')" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>History<span class="badge" id="orphanBadge" style="display:none">0</span></button>
-  <button onclick="openAdd()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add</button>
+  <button data-tab="cash" onclick="go('cash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>Cash flow</button>
   <button data-tab="invest" onclick="go('invest')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="0.7" fill="currentColor" stroke="none"/></svg>Goals</button>
   <button data-tab="family" onclick="go('family')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M4 20c0-3 2.5-5 5-5s5 2 5 5"/><path d="M16 5.5a3 3 0 0 1 0 5.9"/><path d="M17.5 15c1.9.5 3.5 2 3.5 5"/></svg>Family</button>
   <button data-tab="set" onclick="go('set')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 11 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H20a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
@@ -1437,18 +1473,51 @@ function renderBank(){
   // payday now lives in the income section (pay schedule)
 }
 function ccDay(){ payInit(); return (DB.pay.ccDay>=1&&DB.pay.ccDay<=28)?DB.pay.ccDay:20; }
-function ccSettleDate(dateStr){ const d=parse(dateStr); const cd=ccDay(); const dim1=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); let cand=new Date(d.getFullYear(),d.getMonth(),Math.min(cd,dim1)); if(cand<d){ const y=d.getFullYear(),m=d.getMonth()+1; const dim2=new Date(y,m+1,0).getDate(); cand=new Date(y,m,Math.min(cd,dim2)); } return cand; }
-function paymentsOut(from,to){
-  const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); let sum=0;
-  (DB.txns||[]).forEach(t=>{ if(t.amount>=0) return; if(INCOME_CATS.indexOf(t.category)>=0) return; const c=catByName(t.category); if(c && c.group==="Savings") return;
-    if(t.cc){ const sd=ccSettleDate(t.date); if(sd>today) return; if(sd<from||sd>to) return; sum+=-(+t.amount||0); }
-    else { const dt=parse(t.date); if(dt<from||dt>to) return; sum+=-(+t.amount||0); }
-  });
+function ccStart(){ payInit(); return (DB.pay.ccStart>=1&&DB.pay.ccStart<=31)?DB.pay.ccStart:1; }
+function ccEnd(){ payInit(); return (DB.pay.ccEnd>=1&&DB.pay.ccEnd<=31)?DB.pay.ccEnd:31; }
+function ccPay(){ payInit(); return (DB.pay.ccPay>=1&&DB.pay.ccPay<=31)?DB.pay.ccPay:28; }
+function firstDayOnOrAfter(d, day){ const dim=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); let cand=new Date(d.getFullYear(),d.getMonth(),Math.min(day,dim)); if(cand<d){ const y=d.getFullYear(),m=d.getMonth()+1; const dim2=new Date(y,m+1,0).getDate(); cand=new Date(y,m,Math.min(day,dim2)); } return cand; }
+function cardPayDateFor(dateStr){ const close=firstDayOnOrAfter(parse(dateStr), ccEnd()); return firstDayOnOrAfter(close, ccPay()); }
+function cardPaymentsBetween(A, target){ let sum=0; (DB.txns||[]).forEach(t=>{ if(!t.cc||t.amount>=0) return; const pd=cardPayDateFor(t.date); if(pd>A && pd<=target) sum+=-(+t.amount||0); }); return sum; }
+function recurringBetween(A, target){ let sum=0; (DB.recurring||[]).forEach(r=>{ occurrences(r, target).forEach(d=>{ if(d<=A||d>target) return; const key=r.id+"|"+ymd(d); if(DB.resolved && DB.resolved[key]) return; sum+=(r.flow==="in"?1:-1)*(+r.amount||0); }); }); return sum; }
+function salaryScheduledBetween(A, target){ const A1=new Date(A); A1.setDate(A1.getDate()+1); return salaryBetween(A1, target, false); }
+function cashProjected(targetDate){
+  const mk=bankMarker(); if(!mk) return null;
+  const A=parse(mk.date); if(targetDate<A) return +mk.amount||0;
+  let bal=+mk.amount||0;
+  (DB.txns||[]).forEach(t=>{ if(t.cc) return; const d=parse(t.date); if(d>A && d<=targetDate) bal+=(+t.amount||0); });   // logged non-card movements
+  bal += salaryScheduledBetween(A, targetDate);   // scheduled wages
+  bal += recurringBetween(A, targetDate);         // scheduled recurring bills/income not yet logged
+  bal -= cardPaymentsBetween(A, targetDate);      // card statements paid in the window
+  return bal;
+}
+function cashDatesInit(){ if(!Array.isArray(DB.cashDates)) DB.cashDates=[]; }
+function addCashBalance2(){ bankInit(); const date=document.getElementById("cashBalDate").value||todayISO(); const amt=parseFloat(document.getElementById("cashBalAmt").value); if(isNaN(amt)){ toast("Enter a balance"); return; } const ex=DB.bank.balances.find(h=>h.date===date); if(ex) ex.amount=amt; else DB.bank.balances.push({id:"bb"+Date.now()+Math.random().toString(36).slice(2,5), date, amount:amt}); save(); const el=document.getElementById("cashBalAmt"); if(el) el.value=""; renderCash(); toast("Balance set ✓"); }
+function addCashBalance(){ addCashBalance2(); }
+function delCashBalance(id){ bankInit(); DB.bank.balances=DB.bank.balances.filter(h=>h.id!==id); save(); renderCash(); }
+function renderCashBalList(){ const el=document.getElementById("cashBalList"); if(!el) return; const b=bankBalances(); el.innerHTML=b.length? b.slice().reverse().map(h=>`<div class="catrow"><div class="catrow-main"><span class="cname">${fmtDateY(h.date)}</span><span style="font-weight:700">${gbp(h.amount)}</span><button class="btn danger" style="width:auto;padding:5px 9px;margin-left:auto" onclick="delCashBalance('${h.id}')">Delete</button></div></div>`).join("") : '<div class="tiny muted" style="padding:2px 0">No balance set yet.</div>'; }
+function addCashDate(){ cashDatesInit(); const d=document.getElementById("cashDateNew").value; if(!d){ toast("Pick a date"); return; } if(DB.cashDates.indexOf(d)<0) DB.cashDates.push(d); DB.cashDates.sort(); save(); document.getElementById("cashDateNew").value=""; renderCashDates(); }
+function delCashDate(d){ cashDatesInit(); DB.cashDates=DB.cashDates.filter(x=>x!==d); save(); renderCashDates(); }
+function renderCashDates(){ const el=document.getElementById("cashDatesList"); if(!el) return; cashDatesInit(); if(!DB.cashDates.length){ el.innerHTML='<div class="tiny muted" style="padding:2px 0">No dates yet — add one below.</div>'; return; }
+  el.innerHTML=DB.cashDates.map(d=>{ const bal=cashProjected(parse(d)); const col=(bal==null)?"var(--muted)":(bal<0?"var(--red)":(bal>2000?"#e8b923":"var(--green)")); return `<div class="catrow"><div class="catrow-main"><span class="cname">${fmtDateY(d)}</span><span style="font-weight:700;color:${col}">${bal==null?"—":gbp(bal)}</span><button class="btn danger" style="width:auto;padding:5px 9px;margin-left:auto" onclick="delCashDate('${d}')">✕</button></div></div>`; }).join(""); }
+function renderCash(){
+  const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const nowBal=cashProjected(today);
+  const nEl=document.getElementById("cashNow"), note=document.getElementById("cashAnchorNote");
+  if(nowBal==null){ if(nEl){ nEl.textContent="—"; nEl.style.color=""; } if(note) note.textContent="Set your actual balance below to start projecting."; }
+  else { if(nEl){ nEl.textContent=gbp(nowBal); nEl.style.color=nowBal<0?"var(--red)":(nowBal>2000?"#e8b923":"var(--green)"); } const mk=bankMarker(); if(note) note.textContent=mk?("From your balance of "+gbp(mk.amount)+" on "+fmtDateY(mk.date)):""; }
+  renderCashBalList(); renderCashDates();
+}
+
+function ccSettleDate(dateStr){ const d=parse(dateStr); const cd=ccDay(); const nm=new Date(d.getFullYear(),d.getMonth()+1,1); const dim=new Date(nm.getFullYear(),nm.getMonth()+1,0).getDate(); return new Date(nm.getFullYear(),nm.getMonth(),Math.min(cd,dim)); }  // previous month's spend, paid on the card day next month
+function paymentsOut(from,to){    // dashboard = accrual: all spend counts on its purchase date (the card flag is only used by the Cash Flow tab)
+  let sum=0;
+  (DB.txns||[]).forEach(t=>{ if(t.amount>=0) return; if(INCOME_CATS.indexOf(t.category)>=0) return; const c=catByName(t.category); if(c && c.group==="Savings") return; const dt=parse(t.date); if(dt<from||dt>to) return; sum+=-(+t.amount||0); });
   return sum;
 }
 function ccPendingTotal(){ const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); let sum=0; (DB.txns||[]).forEach(t=>{ if(t.amount>=0||!t.cc) return; const c=catByName(t.category); if(c && c.group==="Savings") return; if(ccSettleDate(t.date)>today) sum+=-(+t.amount||0); }); return sum; }
-function saveCcSettings(){ payInit(); let v=parseInt(document.getElementById("ccDayIn").value,10); if(isNaN(v)) v=20; DB.pay.ccDay=Math.max(1,Math.min(28,v)); DB.pay.ccDefault=document.getElementById("ccDefaultIn").value||"balance"; save(); try{ renderDash(); }catch(e){} }
-function updCcUI(){ payInit(); const d=document.getElementById("ccDayIn"); if(d && document.activeElement!==d) d.value=ccDay(); const s=document.getElementById("ccDefaultIn"); if(s && document.activeElement!==s) s.value=DB.pay.ccDefault||"balance"; }
+function saveCcSettings(){ payInit(); const gi=(id,def)=>{ let v=parseInt((document.getElementById(id)||{}).value,10); if(isNaN(v)) v=def; return Math.max(1,Math.min(31,v)); }; DB.pay.ccStart=gi("ccStartIn",1); DB.pay.ccEnd=gi("ccEndIn",31); DB.pay.ccPay=gi("ccPayIn",28); DB.pay.ccDefault=(document.getElementById("ccDefaultIn")||{}).value||"balance"; save(); try{ renderCash(); }catch(e){} }
+function updCcUI(){ payInit(); const set=(id,v)=>{ const e=document.getElementById(id); if(e && document.activeElement!==e) e.value=v; }; set("ccStartIn",ccStart()); set("ccEndIn",ccEnd()); set("ccPayIn",ccPay()); const s=document.getElementById("ccDefaultIn"); if(s && document.activeElement!==s) s.value=DB.pay.ccDefault||"balance"; }
 function salaryBetween(from,to,capToday){
   payInit(); const f=DB.pay.freq||"monthly";
   const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
@@ -1553,7 +1622,6 @@ function renderDash(){
       document.getElementById("mbSpendNow").textContent=gbp(_payNoSav);
       document.getElementById("mbSpendMax").textContent=gbp(_incTot);
       document.getElementById("mbSpendBar").style.width=Math.max(0,Math.min(100,_payNoSav/_incTot*100))+"%";
-      const _cp=ccPendingTotal(), cpel=document.getElementById("mbCcPending"); if(cpel){ if(_cp>0.005){ cpel.textContent=gbp(_cp)+" pending on credit card"; cpel.style.display="block"; } else { cpel.style.display="none"; } }
     } }
   }catch(e){}
   renderGrade();
@@ -2290,6 +2358,7 @@ function go(tab){
   document.getElementById("page-"+tab).classList.add("on");
   document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
   if(tab==="dash") renderDash();
+  if(tab==="cash") renderCash();
   if(tab==="add"){ renderRec(); updPendBadge(); if(pendingItems().length>0){ const a=document.getElementById("accMonthly"); if(a) a.classList.add("open"); } }
   if(tab==="tx"){ renderTxFilter(); renderTx(); }
   if(tab==="set") renderSettings();
