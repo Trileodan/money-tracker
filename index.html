@@ -176,6 +176,11 @@ canvas{max-width:100%;}
 .cat.alloc{border-top:1px solid var(--line);margin-top:4px;padding-top:13px;}
 .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--accent);color:#06281d;font-weight:700;padding:11px 20px;border-radius:30px;font-size:14px;z-index:200;opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.4);}
 .toast.on{opacity:1;}
+.sheet{position:relative;}
+.xclose{position:absolute;top:10px;right:10px;width:34px;height:34px;border:none;background:var(--line);color:var(--txt);border-radius:50%;font-size:15px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:3;}
+.icontog{display:inline-flex;align-items:center;gap:7px;padding:9px 13px;border-radius:12px;border:1.5px solid var(--line);background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.icontog svg{width:19px;height:19px;}
+.icontog.on{border-color:#e8b923;color:#e8b923;background:rgba(232,185,35,.13);}
 </style>
 </head>
 <body>
@@ -255,7 +260,8 @@ canvas{max-width:100%;}
     </div>
 
     <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Spending by category</h2><button class="btn sec" style="width:auto;padding:5px 12px" id="editCatsBtn" onclick="toggleEditCats()">Manage</button></div>
-    <p class="sub" id="targetNote">Tap a pot to add to it. Tap <b>Manage</b> to add or edit your categories.</p>
+    <button class="btn" style="margin-bottom:10px" onclick="openAdd()">+ Add transaction</button>
+    <p class="sub" id="targetNote">Tap a category to see its transactions. Tap <b>Manage</b> to add or edit your categories.</p>
     <div class="card" id="manageSummary" style="display:none;margin-bottom:10px;padding:12px"></div>
     <div class="card" id="catList"></div>
     <div style="display:flex;justify-content:center;margin-top:14px"><button class="btn sec" style="width:auto;padding:8px 16px;position:relative" onclick="openMore()">⋯ More <span class="dot" id="moreDot" style="background:var(--red);display:none;margin-left:4px"></span></button></div>
@@ -274,7 +280,7 @@ canvas{max-width:100%;}
 
   <!-- ============ ADD (popup) ============ -->
   <div class="modal" id="addModal">
-    <div class="sheet">
+    <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
       <h2 style="margin-top:0" id="addTitle">Add transaction</h2>
       <div id="addPotStatus" class="tiny" style="display:none;margin-bottom:8px;font-weight:600"></div>
       <div class="field suggwrap"><label>Description</label><input id="aDesc" autocomplete="off" placeholder="e.g. Phone Bill, Coffee" oninput="descInput()" onblur="setTimeout(function(){var b=document.getElementById('descSugg');if(b)b.style.display='none';},150)"><div class="suggbox" id="descSugg"></div></div>
@@ -282,20 +288,16 @@ canvas{max-width:100%;}
       <div class="field"><label>Date</label><input type="date" id="aDate"></div>
       <div class="field"><label>Transaction type</label><select id="aCat"></select></div>
       <div class="field">
-        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
-          <input type="checkbox" id="aRec" style="width:auto" onchange="document.getElementById('aFreqWrap').style.display=this.checked?'block':'none'"> Repeat this transaction
-        </label>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button type="button" id="aRec" class="icontog" onclick="toggleIcon('aRec')" title="Repeat this transaction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Repeat</button>
+          <span id="aCCWrap" style="display:none"><button type="button" id="aCC" class="icontog" onclick="toggleIcon('aCC')" title="Paid on credit card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Card</button></span>
+        </div>
         <div id="aFreqWrap" style="display:none;margin-top:10px">
           <label>How often</label>
           <select id="aFreq"></select>
           <p class="note" style="margin:6px 0 0">Each time it's due it'll appear under "Monthly &amp; pending" for you to confirm or reject.</p>
         </div>
-      </div>
-      <div class="field" id="aCCWrap">
-        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
-          <input type="checkbox" id="aCC" style="width:auto"> Paid on credit card
-        </label>
-        <p class="note" style="margin:6px 0 0">Counts toward the category straight away, but only leaves your "left to spend" when the card payment goes out next month (a month in arrears).</p>
+        <p class="note" style="margin:8px 0 0">Tap <b>Card</b> for a credit-card payment — it counts toward the category now but only leaves your "left to spend" when the card is paid next month.</p>
       </div>
       <button class="btn sec" id="addViewTx" style="display:none;width:100%;margin-bottom:8px" onclick="viewAddCat()">View transactions</button>
       <div class="row">
@@ -398,7 +400,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 91 · manage income basis</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 96 · cash-flow card bills</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -602,15 +604,13 @@ canvas{max-width:100%;}
       <div class="bigfig" id="cashNow">£0</div>
       <div class="tiny muted" id="cashAnchorNote" style="margin-top:4px"></div>
     </div>
-    <div class="card">
-      <h2 style="margin-top:2px">Important dates</h2>
-      <p class="note">What you should have in your account on each date — after all scheduled income, bills and card payments up to then. It can't predict spontaneous spending, so keep logging as you go.</p>
-      <div id="cashDatesList" style="margin-top:6px"></div>
-      <div class="row" style="margin-top:10px">
-        <div><label>Add a date</label><input type="date" id="cashDateNew"></div>
-        <div style="display:flex;align-items:flex-end"><button class="btn sec" style="width:100%" onclick="addCashDate()">Add date</button></div>
-      </div>
+    <div id="cashWarn" class="card" style="display:none;border:1.5px solid var(--red);background:rgba(239,68,68,.10)"></div>
+    <div class="seg" id="cashMonthSeg" style="margin:4px 0 12px">
+      <button class="on" data-cm="0" onclick="setCashMonth(0)">This month</button>
+      <button data-cm="1" onclick="setCashMonth(1)">Next month</button>
     </div>
+    <p class="note" style="margin:0 0 8px">Your projected balance after each scheduled payment and pay day. Anything flagged as a card payment is grouped into your credit-card payment on its due date. It can't predict spontaneous spending, so keep logging as you go.</p>
+    <div class="card" id="cashTimeline"></div>
     <div class="acc" id="accCashBal">
       <div class="acc-head" onclick="toggleAcc('accCashBal')"><span>Set your actual balance</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -637,7 +637,7 @@ canvas{max-width:100%;}
 
 <!-- EDIT RECURRING MODAL -->
 <div class="modal" id="recModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0">Edit recurring item</h2>
     <div class="field">
       <div class="seg" id="eFlowSeg">
@@ -650,6 +650,7 @@ canvas{max-width:100%;}
     <div class="field"><label>Description</label><input id="eDesc"></div>
     <div class="field"><label>How often</label><select id="eFreq"></select></div>
     <div class="field"><label>Next due / start date</label><input type="date" id="eAnchor"></div>
+    <div class="field" id="eCCWrap"><button type="button" id="eCC" class="icontog" onclick="toggleIcon('eCC')" title="Paid on credit card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Paid on credit card</button></div>
     <div class="row">
       <button class="btn sec" onclick="closeRecModal()">Cancel</button>
       <button class="btn" onclick="saveRecEdit()">Save changes</button>
@@ -659,16 +660,15 @@ canvas{max-width:100%;}
 
 <!-- SPEND TOTAL MODAL -->
 <div class="modal" id="spendModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0" id="spendTitle">Spent on</h2>
     <div id="spendBody"></div>
-    <button class="btn sec" style="margin-top:14px" onclick="closeSpendModal()">Close</button>
   </div>
 </div>
 
 <!-- EDIT CATEGORY MODAL -->
 <div class="modal" id="famScanModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0">Scan partner's QR</h2>
     <p class="tiny muted" id="famScanMsg">Point at your partner's QR code…</p>
     <video id="famVideo" playsinline muted style="width:100%;border-radius:12px;background:#000"></video>
@@ -682,7 +682,7 @@ canvas{max-width:100%;}
 </div>
 
 <div class="modal" id="famShareModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0">Share my figures</h2>
     <p class="note">Send this code to your partner — they paste it into their Family tab. It holds only your per-category totals and headline numbers, no individual purchases.</p>
     <textarea id="famShareText" class="famta" readonly></textarea>
@@ -696,12 +696,11 @@ canvas{max-width:100%;}
     </div>
     <div id="famQR" style="margin-top:10px"></div>
     <p class="tiny muted" style="text-align:center;margin-top:2px">A shorter period makes a simpler code that's easier to scan. Copy/paste always sends your full history.</p>
-    <button class="btn sec" style="margin-top:8px" onclick="closeFamShare()">Close</button>
   </div>
 </div>
 
 <div class="modal" id="famPasteModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0">Paste an update</h2>
     <p class="note">Paste the code your partner shared with you.</p>
     <textarea id="famPasteText" class="famta" placeholder="Paste code here"></textarea>
@@ -714,7 +713,7 @@ canvas{max-width:100%;}
 </div>
 
 <div class="modal" id="mortgageModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0">Mortgage</h2>
     <div class="field"><label>Home value (£)</label><input type="number" id="mortValIn" inputmode="decimal" placeholder="£"></div>
     <div class="field"><label>Mortgage balance — what you owe now (£)</label><input type="number" id="mortBalIn" inputmode="decimal" placeholder="£"></div>
@@ -727,15 +726,14 @@ canvas{max-width:100%;}
 </div>
 
 <div class="modal" id="gradeInfoModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0" id="gradeInfoTitle">Month grade</h2>
     <div id="gradeInfoBody"></div>
-    <button class="btn sec" style="margin-top:14px" onclick="closeGradeInfo()">Close</button>
   </div>
 </div>
 
 <div class="modal" id="streakModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 id="streakModalTitle" style="margin-top:0">New streak</h2>
     <div class="field"><label>Name</label><input id="stName" placeholder="e.g. Coffee"></div>
     <div class="field"><label>Budget (£)</label><input type="number" id="stBudget" inputmode="decimal" placeholder="£"></div>
@@ -753,17 +751,16 @@ canvas{max-width:100%;}
 </div>
 
 <div class="modal" id="moreModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0">More</h2>
     <button class="btn sec" style="width:100%;margin-bottom:8px;position:relative" onclick="openMonthlySheet()">Monthly &amp; pending <span class="dot" id="moreDotSheet" style="background:var(--red);display:none;margin-left:6px"></span></button>
     <button class="btn sec" style="width:100%;margin-bottom:8px" onclick="openImportSheet()">Import bank statement</button>
     <button class="btn sec" style="width:100%;margin-bottom:8px" onclick="closeMore();exportData()">Back up data (.json)</button>
-    <button class="btn sec" style="width:100%" onclick="closeMore()">Close</button>
   </div>
 </div>
 
 <div class="modal" id="monthlySheet">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0">Monthly &amp; pending</h2>
     <p class="sub" style="margin-top:2px">Confirm or reject items that are due, and manage your repeating payments.</p>
     <h2 style="margin-top:8px">Due now</h2>
@@ -771,24 +768,22 @@ canvas{max-width:100%;}
     <h2>Recurring templates</h2>
     <p class="sub">Each appears for confirmation on its schedule — weekly, fortnightly, monthly or annually. Tap Edit to change one.</p>
     <div class="card" id="recList"></div>
-    <button class="btn sec" style="margin-top:14px;width:100%" onclick="closeMonthlySheet()">Close</button>
   </div>
 </div>
 
 <div class="modal" id="importSheet">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0">Import bank statement</h2>
     <p class="sub" style="margin-top:2px">Import a CSV statement (Nationwide, NatWest and most UK banks). I'll sort each transaction into a category, skip anything already logged, and let you review before adding. Nothing leaves your device.</p>
     <div id="impResume" style="display:none;margin:2px 0 10px"></div>
     <div class="field"><label>Statement file (.csv)</label><input type="file" id="impFileInput" accept=".csv,text/csv" onchange="impFile(this)"></div>
     <div class="field"><label>Match window (days)</label><input type="number" id="impTol" value="4" min="0" step="1" inputmode="numeric" style="max-width:120px"><p class="note" style="margin:6px 0 0">A manual entry within this many days of a statement line (same shop, same amount) counts as the same transaction.</p></div>
     <p class="note" id="impMsg" style="color:var(--amber)"></p>
-    <button class="btn sec" style="margin-top:8px;width:100%" onclick="closeImportSheet()">Close</button>
   </div>
 </div>
 
 <div class="modal" id="impModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0">Review import</h2>
     <div id="impSummary" class="sub"></div>
     <div class="bar" style="height:10px;margin-top:8px"><span id="impProg" style="width:0%;background:var(--accent)"></span></div>
@@ -804,7 +799,7 @@ canvas{max-width:100%;}
 </div>
 
 <div class="modal" id="goalModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 id="goalModalTitle" style="margin-top:0">New goal</h2>
     <div class="field"><label>Goal name</label><input id="gName" placeholder="e.g. Emergency Fund"></div>
     <div class="field"><label>Target (£)</label><input type="number" id="gTarget" inputmode="decimal" placeholder="£"></div>
@@ -817,7 +812,7 @@ canvas{max-width:100%;}
 </div>
 
 <div class="modal" id="catModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0" id="catModalTitle">Edit category</h2>
     <div class="field"><label>Name</label><input id="ecName"></div>
     <div class="field"><label>Type</label><select id="ecType">
@@ -842,7 +837,7 @@ canvas{max-width:100%;}
 
 <!-- EDIT TRANSACTION MODAL -->
 <div class="modal" id="txModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0">Edit transaction</h2>
     <div class="field">
       <div class="seg" id="tFlowSeg">
@@ -884,7 +879,7 @@ canvas{max-width:100%;}
 
 <!-- EDIT USER MODAL -->
 <div class="modal" id="userModal">
-  <div class="sheet">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0" id="userModalTitle">Edit user</h2>
     <div class="field" id="uNameWrap"><label>Username</label><input id="uName"></div>
     <div class="field"><label>New password (leave blank to keep current)</label><input id="uPw" type="password" autocomplete="off"></div>
@@ -1412,9 +1407,13 @@ function ccStart(){ payInit(); return (DB.pay.ccStart>=1&&DB.pay.ccStart<=31)?DB
 function ccEnd(){ payInit(); return (DB.pay.ccEnd>=1&&DB.pay.ccEnd<=31)?DB.pay.ccEnd:31; }
 function ccPay(){ payInit(); return (DB.pay.ccPay>=1&&DB.pay.ccPay<=31)?DB.pay.ccPay:28; }
 function firstDayOnOrAfter(d, day){ const dim=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); let cand=new Date(d.getFullYear(),d.getMonth(),Math.min(day,dim)); if(cand<d){ const y=d.getFullYear(),m=d.getMonth()+1; const dim2=new Date(y,m+1,0).getDate(); cand=new Date(y,m,Math.min(day,dim2)); } return cand; }
-function cardPayDateFor(dateStr){ const close=firstDayOnOrAfter(parse(dateStr), ccEnd()); return firstDayOnOrAfter(close, ccPay()); }
-function cardPaymentsBetween(A, target){ let sum=0; (DB.txns||[]).forEach(t=>{ if(!t.cc||t.amount>=0) return; const pd=cardPayDateFor(t.date); if(pd>A && pd<=target) sum+=-(+t.amount||0); }); return sum; }
-function recurringBetween(A, target){ let sum=0; (DB.recurring||[]).forEach(r=>{ occurrences(r, target).forEach(d=>{ if(d<=A||d>target) return; const key=r.id+"|"+ymd(d); if(DB.resolved && DB.resolved[key]) return; sum+=(r.flow==="in"?1:-1)*(+r.amount||0); }); }); return sum; }
+function cardPayDateForD(d){ const close=firstDayOnOrAfter(d, ccEnd()); return firstDayOnOrAfter(close, ccPay()); }
+function cardPayDateFor(dateStr){ return cardPayDateForD(parse(dateStr)); }
+function cardPaymentsBetween(A, target){ let sum=0;
+  (DB.txns||[]).forEach(t=>{ if(!t.cc||t.amount>=0) return; const pd=cardPayDateFor(t.date); if(pd>A && pd<=target) sum+=-(+t.amount||0); });
+  (DB.recurring||[]).forEach(r=>{ if(!r.cc||r.flow==="in") return; occurrences(r, target).forEach(d=>{ const key=r.id+"|"+ymd(d); if(DB.resolved&&DB.resolved[key]) return; const pd=cardPayDateForD(d); if(pd>A && pd<=target) sum+=(+r.amount||0); }); });
+  return sum; }
+function recurringBetween(A, target){ let sum=0; (DB.recurring||[]).forEach(r=>{ if(r.cc) return; occurrences(r, target).forEach(d=>{ if(d<=A||d>target) return; const key=r.id+"|"+ymd(d); if(DB.resolved && DB.resolved[key]) return; sum+=(r.flow==="in"?1:-1)*(+r.amount||0); }); }); return sum; }
 function salaryScheduledBetween(A, target){ const A1=new Date(A); A1.setDate(A1.getDate()+1); return salaryBetween(A1, target, false); }
 function cashProjected(targetDate){
   const mk=bankMarker(); if(!mk) return null;
@@ -1441,9 +1440,72 @@ function renderCash(){
   const nEl=document.getElementById("cashNow"), note=document.getElementById("cashAnchorNote");
   if(nowBal==null){ if(nEl){ nEl.textContent="—"; nEl.style.color=""; } if(note) note.textContent="Set your actual balance below to start projecting."; }
   else { if(nEl){ nEl.textContent=gbp(nowBal); nEl.style.color=nowBal<0?"var(--red)":(nowBal>2000?"#e8b923":"var(--green)"); } const mk=bankMarker(); if(note) note.textContent=mk?("From your balance of "+gbp(mk.amount)+" on "+fmtDateY(mk.date)):""; }
-  renderCashBalList(); renderCashDates();
+  renderCashBalList(); renderCashWarn(); renderCashTimeline();
 }
 
+let CASH_MONTH=0;
+function setCashMonth(m){ CASH_MONTH=m; document.querySelectorAll("#cashMonthSeg button").forEach(b=>b.classList.toggle("on",+b.dataset.cm===m)); renderCashWarn(); renderCashTimeline(); }
+// individual scheduled pay dates (with amounts) in a window
+function payDatesBetween(from,to){
+  payInit(); const f=DB.pay.freq||"monthly"; const out=[];
+  const lo=new Date(from.getFullYear(),from.getMonth(),from.getDate());
+  const hi=new Date(to.getFullYear(),to.getMonth(),to.getDate());
+  if(hi<lo) return out;
+  if(f==="monthly"){ const pd=DB.pay.payDay||25; let d=new Date(lo.getFullYear(),lo.getMonth(),1), g=0;
+    for(; d<=hi && g<600; d.setMonth(d.getMonth()+1),g++){ const y=d.getFullYear(),m=d.getMonth(),dim=new Date(y,m+1,0).getDate(); const pay=new Date(y,m,Math.min(pd,dim)); if(pay<lo||pay>hi) continue; out.push({date:pay, amount:payAmountForMonth(y,m)}); } }
+  else { const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(anchor&&step){ let d=new Date(anchor),g=0; while(d>lo && g++<8000) d.setDate(d.getDate()-step); for(g=0; d<=hi && g<8000; d.setDate(d.getDate()+step),g++){ if(d<lo||d>hi) continue; out.push({date:new Date(d), amount:payAmountForMonth(d.getFullYear(),d.getMonth())}); } } }
+  return out;
+}
+// all cash-flow events within [mStart,mEnd]: pay, non-card bills/income, logged non-card txns, grouped card payments
+function cashEvents(mStart,mEnd){
+  const evs=[];
+  payDatesBetween(mStart,mEnd).forEach(pd=>{ if((+pd.amount||0)>0) evs.push({date:pd.date, desc:"Income — pay day", amount:+pd.amount}); });
+  (DB.recurring||[]).forEach(r=>{ if(r.cc) return; occurrences(r, mEnd).forEach(d=>{ if(d<mStart||d>mEnd) return; const key=r.id+"|"+ymd(d); if(DB.resolved && DB.resolved[key]) return; evs.push({date:new Date(d), desc:r.desc, amount:(r.flow==="in"?1:-1)*(+r.amount||0)}); }); });
+  (DB.txns||[]).forEach(t=>{ if(t.cc) return; const d=parse(t.date); if(d<mStart||d>mEnd) return; evs.push({date:d, desc:(t.desc||t.category||"Payment"), amount:(+t.amount||0)}); });
+  const cardMap={};
+  const addCard=(pd,amt)=>{ if(pd<mStart||pd>mEnd) return; const k=pd.getFullYear()+"-"+pd.getMonth()+"-"+pd.getDate(); if(!cardMap[k]) cardMap[k]={date:pd,sum:0}; cardMap[k].sum+=amt; };
+  (DB.txns||[]).forEach(t=>{ if(!t.cc||t.amount>=0) return; addCard(cardPayDateFor(t.date), -(+t.amount||0)); });
+  (DB.recurring||[]).forEach(r=>{ if(!r.cc||r.flow==="in") return; occurrences(r, mEnd).forEach(d=>{ const key=r.id+"|"+ymd(d); if(DB.resolved&&DB.resolved[key]) return; addCard(cardPayDateForD(d), (+r.amount||0)); }); });
+  Object.keys(cardMap).forEach(k=>{ if(cardMap[k].sum>0) evs.push({date:cardMap[k].date, desc:"Credit card payment", amount:-cardMap[k].sum, card:true}); });
+  evs.sort((a,b)=> a.date-b.date || (a.card?1:0)-(b.card?1:0));
+  return evs;
+}
+function renderCashTimeline(){
+  const el=document.getElementById("cashTimeline"); if(!el) return;
+  const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  if(!bankMarker()){ el.innerHTML='<div class="tiny muted" style="padding:6px 2px">Set your actual balance below to see your cash-flow timeline.</div>'; return; }
+  const base=new Date(today.getFullYear(), today.getMonth()+CASH_MONTH, 1);
+  const mStart=new Date(base.getFullYear(), base.getMonth(), 1);
+  const mEnd=new Date(base.getFullYear(), base.getMonth()+1, 0); mEnd.setHours(23,59,59,999);
+  const evs=cashEvents(mStart,mEnd);
+  let html='<h2 style="margin:2px 0 8px">'+base.toLocaleDateString("en-GB",{month:"long",year:"numeric"})+'</h2>';
+  if(!evs.length){ el.innerHTML=html+'<div class="tiny muted" style="padding:6px 2px">No scheduled payments or income in this month.</div>'; return; }
+  html+=evs.map(e=>{
+    const bal=cashProjected(e.date);
+    const isToday = (e.date.getFullYear()===today.getFullYear()&&e.date.getMonth()===today.getMonth()&&e.date.getDate()===today.getDate());
+    const amtCol=e.amount>=0?"var(--green)":"var(--txt)";
+    const balCol=(bal==null)?"var(--muted)":(bal<1?"var(--red)":(bal>2000?"#e8b923":"var(--green)"));
+    const sign=e.amount>=0?"+":"−";
+    return `<div class="tx" style="align-items:center${isToday?';background:rgba(232,185,35,.06)':''}">
+      <div class="l"><div class="d">${e.card?'💳 ':''}${e.desc}</div><div class="s">${e.date.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div></div>
+      <div class="r" style="text-align:right"><div class="a" style="color:${amtCol}">${sign}${gbp(Math.abs(e.amount))}</div><div class="tiny" style="color:${balCol};font-weight:700">bal ${bal==null?"—":gbp(bal)}</div></div>
+    </div>`;
+  }).join("");
+  el.innerHTML=html;
+}
+function renderCashWarn(){
+  const el=document.getElementById("cashWarn"); if(!el) return;
+  const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  if(!bankMarker()){ el.style.display="none"; return; }
+  const start=new Date(today.getFullYear(),today.getMonth(),1);
+  const end=new Date(today.getFullYear(),today.getMonth()+2,0); end.setHours(23,59,59,999);
+  const evs=cashEvents(start,end);
+  let hit=null;
+  const tb=cashProjected(today); if(tb!=null && tb<1) hit={date:today,bal:tb};
+  if(!hit){ for(let i=0;i<evs.length;i++){ if(evs[i].date<today) continue; const b=cashProjected(evs[i].date); if(b!=null && b<1){ hit={date:evs[i].date,bal:b}; break; } } }
+  if(hit){ el.style.display="block"; el.innerHTML='<div style="font-weight:800;color:var(--red)">⚠ Low balance warning</div><div class="tiny" style="margin-top:4px">Your projected balance drops to <b>'+gbp(hit.bal)+'</b> on '+hit.date.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})+'. Consider moving money across or delaying a payment.</div>'; }
+  else el.style.display="none";
+}
 function ccSettleDate(dateStr){ const d=parse(dateStr); const cd=ccDay(); const nm=new Date(d.getFullYear(),d.getMonth()+1,1); const dim=new Date(nm.getFullYear(),nm.getMonth()+1,0).getDate(); return new Date(nm.getFullYear(),nm.getMonth(),Math.min(cd,dim)); }  // previous month's spend, paid on the card day next month
 function paymentsOut(from,to){    // dashboard = accrual: all spend counts on its purchase date (the card flag is only used by the Cash Flow tab)
   let sum=0;
@@ -1474,8 +1536,8 @@ function salaryBetween(from,to,capToday){
 }
 let ADD_CTX_CAT="";
 function potAddStatus(cat){ const c=catByName(cat); if(!c) return ""; const n=new Date(); const paid=Math.max(0,catNetInMonth(cat,n.getFullYear(),n.getMonth())); const bud=monthTargetFor(c,mkKey(n.getFullYear(),n.getMonth())); return bud>0 ? (gbp(paid)+" of "+gbp(bud)+" this month") : (gbp(paid)+" spent this month"); }
-function openAdd(){ try{ syncCatSelects(); }catch(e){} ADD_CTX_CAT=""; const t=document.getElementById("addTitle"); if(t) t.textContent="Add transaction"; const ps=document.getElementById("addPotStatus"); if(ps) ps.style.display="none"; const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="none"; const _cc=document.getElementById("aCC"); if(_cc) _cc.checked=(DB.pay&&DB.pay.ccDefault==="credit"); const _cw=document.getElementById("aCCWrap"); if(_cw) _cw.style.display=(FLOW==="out")?"block":"none"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); }
-function openPotAdd(cat){ try{ syncCatSelects(); }catch(e){} ADD_CTX_CAT=cat; try{ setFlow("out"); }catch(e){} const c=document.getElementById("aCat"); if(c && [...c.options].some(o=>o.value===cat)) c.value=cat; const t=document.getElementById("addTitle"); if(t) t.textContent="Add to "+cat; const ps=document.getElementById("addPotStatus"); if(ps){ const st=potAddStatus(cat); ps.textContent=st; ps.style.display=st?"block":"none"; } const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="block"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const am=document.getElementById("aAmount"); if(am) am.value=""; const de=document.getElementById("aDesc"); if(de) de.value=""; const _cc=document.getElementById("aCC"); if(_cc) _cc.checked=(DB.pay&&DB.pay.ccDefault==="credit"); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); if(am) am.focus(); }
+function openAdd(){ try{ syncCatSelects(); }catch(e){} try{ setFlow("out"); }catch(e){} ADD_CTX_CAT=""; const t=document.getElementById("addTitle"); if(t) t.textContent="Add transaction"; const ps=document.getElementById("addPotStatus"); if(ps) ps.style.display="none"; const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="none"; const _cc=document.getElementById("aCC"); if(_cc) setIconToggle("aCC",(DB.pay&&DB.pay.ccDefault==="credit")); setIconToggle("aRec",false); const _cw=document.getElementById("aCCWrap"); if(_cw) _cw.style.display=(FLOW==="out")?"block":"none"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); }
+function openPotAdd(cat){ try{ syncCatSelects(); }catch(e){} ADD_CTX_CAT=cat; try{ setFlow("out"); }catch(e){} const c=document.getElementById("aCat"); if(c && [...c.options].some(o=>o.value===cat)) c.value=cat; const t=document.getElementById("addTitle"); if(t) t.textContent="Add to "+cat; const ps=document.getElementById("addPotStatus"); if(ps){ const st=potAddStatus(cat); ps.textContent=st; ps.style.display=st?"block":"none"; } const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="block"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const am=document.getElementById("aAmount"); if(am) am.value=""; const de=document.getElementById("aDesc"); if(de) de.value=""; const _cc=document.getElementById("aCC"); if(_cc) setIconToggle("aCC",(DB.pay&&DB.pay.ccDefault==="credit")); setIconToggle("aRec",false); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); if(am) am.focus(); }
 function openAddIncome(){ try{ syncCatSelects(); ADD_CTX_CAT=""; setFlow("in"); const c=document.getElementById("aCat"); if(c && [...c.options].some(o=>o.value==="Other Income")) c.value="Other Income"; const t=document.getElementById("addTitle"); if(t) t.textContent="Add income"; const ps=document.getElementById("addPotStatus"); if(ps) ps.style.display="none"; const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="none"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); const a=document.getElementById("aAmount"); if(a) a.focus(); }catch(e){} }
 function closeAdd(){ const m=document.getElementById("addModal"); if(m) m.classList.remove("on"); }
 function viewAddCat(){ const c=ADD_CTX_CAT; closeAdd(); if(c) openHistory(c); }
@@ -1550,16 +1612,16 @@ function renderDash(){
     const _incTot=_salTot+_addl, _incRec=Math.min(_incTot,_salRec+_addl); _dashIncome=_incTot;
     const _payNoSav=paymentsOut(_pr.from,_pr.to);
     const _left=_incTot-_payNoSav, _mb=document.getElementById("monthBars");
-    if(_mb){ if(!(_incTot>0)){ _mb.style.display="none"; } else { _mb.style.display="block";
+    if(_mb){ _mb.style.display="block";
       const lo=document.getElementById("mbLeftover"); lo.textContent=gbp(_left); lo.style.color=_left<0?"var(--red)":"var(--green)";
       document.getElementById("mbIncomeNow").textContent=gbp(_incRec);
       document.getElementById("mbIncomeMax").textContent=gbp(_incTot);
-      document.getElementById("mbIncomeBar").style.width=Math.max(0,Math.min(100,_incRec/_incTot*100))+"%";
+      document.getElementById("mbIncomeBar").style.width=(_incTot>0?Math.max(0,Math.min(100,_incRec/_incTot*100)):0)+"%";
       document.getElementById("mbSpendNow").textContent=gbp(_payNoSav);
       document.getElementById("mbSpendMax").textContent=gbp(_incTot);
-      document.getElementById("mbSpendBar").style.width=Math.max(0,Math.min(100,_payNoSav/_incTot*100))+"%";
+      document.getElementById("mbSpendBar").style.width=(_incTot>0?Math.max(0,Math.min(100,_payNoSav/_incTot*100)):0)+"%";
       const _mbb=document.getElementById("mbBalance"); if(_mbb){ const _b=_incRec-_payNoSav; _mbb.textContent=gbp(_b); _mbb.style.color=_b<0?"var(--red)":"var(--green)"; }
-    } }
+    }
   }catch(e){}
   renderGrade();
   renderObjectivesDash();
@@ -1628,8 +1690,8 @@ function renderDash(){
     let _col,_tint,_border="";
     if(isSav){ if(_bud<=0){_col="var(--muted)";_tint="transparent";} else if(_paid>=_bud){_col="var(--green)";_tint="rgba(16,185,129,.13)";} else {_col="var(--amber)";_tint="rgba(245,158,11,.10)";} }
     else if(_isFixed){ if(_complete){_col="#e8b923";_tint="rgba(232,185,35,.13)";_border="border:2px solid #e8b923;";} else {_col="var(--green)";_tint=_bud>0?"rgba(16,185,129,.13)":"transparent";} }
-    else { if(_bud<=0){_col="var(--muted)";_tint="transparent";} else if(_paid>_bud+0.005){_col="var(--amber)";_tint="rgba(245,158,11,.13)";} else {_col="var(--green)";_tint="rgba(16,185,129,.13)";} }
-    let _h=`<div class="strbox" onclick="${EDIT_CATS?("editCatByName('"+_esc+"')"):("openPotAdd('"+_esc+"')")}" style="background:${_tint};${_border}">
+    else { if(_bud<=0){_col="var(--muted)";_tint="transparent";} else if(_paid>_bud+0.005){_col="var(--red)";_tint="rgba(239,68,68,.14)";} else {_col="var(--green)";_tint="rgba(16,185,129,.13)";} }
+    let _h=`<div class="strbox" onclick="${EDIT_CATS?("editCatByName('"+_esc+"')"):("openHistory('"+_esc+"')")}" style="background:${_tint};${_border}">
       <div class="tiny" style="font-weight:700;display:flex;align-items:center;gap:6px;min-width:0"><span class="dot" style="background:${catColor(d.c)};flex:none"></span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.c}</span>${_complete?'<span style="color:#e8b923;flex:none">✓</span>':''}</div>
       <div style="margin-top:6px"><span style="font-size:18px;font-weight:800;color:${_col}">${gbp0(_paid)}</span> <span class="tiny muted">/ ${_bud>0?gbp0(_bud):"—"}</span></div>`;
     let _pre="";
@@ -1786,6 +1848,9 @@ function setFlow(f){ FLOW=f; document.querySelectorAll("#flowSeg button").forEac
   document.getElementById("aCat").value = f==="in"?"Wages":"Food & Drink";
   const _cw=document.getElementById("aCCWrap"); if(_cw) _cw.style.display=(f==="out")?"block":"none";
 }
+function setIconToggle(id,on){ const b=document.getElementById(id); if(!b) return; b.classList.toggle("on",!!on); if(id==="aRec"){ const w=document.getElementById("aFreqWrap"); if(w) w.style.display=on?"block":"none"; } }
+function toggleIcon(id){ const b=document.getElementById(id); if(!b) return; setIconToggle(id,!b.classList.contains("on")); }
+function xClose(btn){ const m=btn&&btn.closest?btn.closest(".modal"):null; if(!m) return; if(m.id==="famScanModal"){ try{closeFamScan();}catch(e){} return; } if(m.id==="impModal"){ try{impCloseSave();}catch(e){} return; } m.classList.remove("on"); }
 function fillCatSelect(sel,withAll,includeDisabled){
   const cs = includeDisabled ? allCats() : activeCats();
   const names = INCOME_CATS.concat(cs.map(c=>c.name));
@@ -1803,15 +1868,15 @@ function addTx(){
   const cat=document.getElementById("aCat").value;
   const desc=document.getElementById("aDesc").value.trim();
   const signed = FLOW==="in"? amt : -amt;
-  DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,6), date, desc:desc||cat, amount:signed, category:cat, byId:CURRENT?CURRENT.id:null, byName:curName(), cc:(FLOW==="out" && document.getElementById("aCC") && document.getElementById("aCC").checked)?1:0});
-  if(document.getElementById("aRec").checked){
+  DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,6), date, desc:desc||cat, amount:signed, category:cat, byId:CURRENT?CURRENT.id:null, byName:curName(), cc:(FLOW==="out" && document.getElementById("aCC") && document.getElementById("aCC").classList.contains("on"))?1:0});
+  if(document.getElementById("aRec").classList.contains("on")){
     const rid="r"+Date.now()+Math.random().toString(36).slice(2,6);
     DB.recurring.push({id:rid, desc:desc||cat, amount:amt, flow:FLOW, category:cat, freq:document.getElementById("aFreq").value, anchor:date});
     DB.resolved[rid+"|"+ymd(parse(date))]="confirmed";   // the entry just added IS the first occurrence — don't prompt for it again; next one appears next period
   }
   save();
   document.getElementById("aAmount").value=""; document.getElementById("aDesc").value="";
-  document.getElementById("aRec").checked=false; document.getElementById("aFreqWrap").style.display="none";
+  setIconToggle("aRec",false); setIconToggle("aCC",false);
   toast("Saved ✓");
   closeAdd();
   refreshAll();
@@ -1877,7 +1942,7 @@ function renderRec(){
 function resolve(key,rid,date,confirm){
   const r=DB.recurring.find(x=>x.id===rid);
   if(confirm && r){
-    DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,5), date, desc:r.desc, amount: r.flow==="in"?r.amount:-r.amount, category:r.category, byId:CURRENT?CURRENT.id:null, byName:curName()});
+    DB.txns.push({id:"t"+Date.now()+Math.random().toString(36).slice(2,5), date, desc:r.desc, amount: r.flow==="in"?r.amount:-r.amount, category:r.category, byId:CURRENT?CURRENT.id:null, byName:curName(), cc:(r.cc?1:0)});
   }
   DB.resolved[key]=confirm?"confirmed":"rejected";
   save(); toast(confirm?"Added ✓":"Rejected"); refreshAll();
@@ -1888,6 +1953,7 @@ function delRec(id){ DB.recurring=DB.recurring.filter(r=>r.id!==id); save(); ren
 let EDIT_ID=null, EFLOW="out";
 function editRec(id){
   const r=DB.recurring.find(x=>x.id===id); if(!r) return;
+  try{ closeMonthlySheet(); }catch(e){}
   EDIT_ID=id;
   document.getElementById("eDesc").value=r.desc||"";
   document.getElementById("eAmount").value=r.amount;
@@ -1895,9 +1961,10 @@ function editRec(id){
   document.getElementById("eFreq").value=r.freq||"monthly";
   document.getElementById("eAnchor").value=(r.anchor||todayISO()).slice(0,10);
   eSetFlow(r.flow||"out");
+  setIconToggle("eCC", !!r.cc);
   document.getElementById("recModal").classList.add("on");
 }
-function eSetFlow(f){ EFLOW=f; document.querySelectorAll("#eFlowSeg button").forEach(b=>{ b.classList.toggle("on",b.dataset.flow===f); b.classList.toggle("in",f==="in"); b.classList.toggle("out",f==="out"); }); }
+function eSetFlow(f){ EFLOW=f; document.querySelectorAll("#eFlowSeg button").forEach(b=>{ b.classList.toggle("on",b.dataset.flow===f); b.classList.toggle("in",f==="in"); b.classList.toggle("out",f==="out"); }); const _w=document.getElementById("eCCWrap"); if(_w) _w.style.display=(f==="out")?"block":"none"; }
 function closeRecModal(){ document.getElementById("recModal").classList.remove("on"); EDIT_ID=null; }
 function saveRecEdit(){
   const r=DB.recurring.find(x=>x.id===EDIT_ID); if(!r){ closeRecModal(); return; }
@@ -1905,7 +1972,7 @@ function saveRecEdit(){
   if(!amt||amt<=0){ toast("Enter an amount"); return; }
   const cat=document.getElementById("eCat").value;
   r.desc=document.getElementById("eDesc").value.trim()||cat;
-  r.amount=amt; r.flow=EFLOW; r.category=cat;
+  r.amount=amt; r.flow=EFLOW; r.category=cat; r.cc=document.getElementById("eCC").classList.contains("on")?1:0;
   r.freq=document.getElementById("eFreq").value;
   r.anchor=document.getElementById("eAnchor").value||r.anchor;
   save(); closeRecModal(); toast("Saved ✓"); refreshAll();
