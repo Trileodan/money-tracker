@@ -221,7 +221,10 @@ canvas{max-width:100%;}
           <div class="muted tiny">Left to spend</div>
           <div class="bigfig" id="mbLeftover">£0</div>
         </div>
-        <button class="btn sec" style="width:auto;padding:8px 14px;flex:none;margin-top:6px" onclick="openAddIncome()">+ Income</button>
+        <div style="display:flex;align-items:center;gap:8px;flex:none">
+          <div id="mbGrade" onclick="openGradeInfo()" title="Tap for details" style="display:none;font-size:26px;font-weight:800;letter-spacing:-1px;min-width:46px;text-align:center;border-radius:12px;padding:6px 4px;cursor:pointer"></div>
+          <button class="btn sec" style="width:auto;padding:8px 14px;flex:none" onclick="openAddIncome()">+ Income</button>
+        </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:12px"><span class="tiny muted" style="font-weight:700">Income received</span><span class="tiny muted"><b id="mbIncomeNow" style="color:var(--green)">£0</b> / <b id="mbIncomeMax">£0</b></span></div>
       <div class="bar" style="height:14px;margin-top:6px"><span id="mbIncomeBar" style="width:0%;background:var(--green)"></span></div>
@@ -229,15 +232,6 @@ canvas{max-width:100%;}
       <div class="bar" style="height:14px;margin-top:6px"><span id="mbSpendBar" style="width:0%;background:var(--red)"></span></div>
       <div id="mbCcPending" class="tiny muted" style="display:none;margin-top:8px"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"><span style="font-weight:700">Balance so far</span><span id="mbBalance" style="font-weight:800;font-size:18px">£0</span></div>
-    </div>
-    <div class="card" id="gradeCard" style="display:none">
-      <div style="display:flex;align-items:center;gap:14px">
-        <div id="gradeLetter" style="font-size:32px;font-weight:800;letter-spacing:-1px;min-width:62px;text-align:center;border-radius:14px;padding:10px 4px"></div>
-        <div style="flex:1;min-width:0">
-          <div id="gradeVerdict" style="font-weight:700;font-size:16px"></div>
-          <div id="gradeDetail" class="tiny muted" style="margin-top:3px;line-height:1.45"></div>
-        </div>
-      </div>
     </div>
     <div class="card" id="objDash" style="display:none">
       <h2 style="margin-top:2px">Objectives</h2>
@@ -249,7 +243,12 @@ canvas{max-width:100%;}
       <button class="btn sec" style="margin-top:8px" onclick="go('set')">Open Settings to import</button>
     </div>
 
-    <div class="card" id="chartCard">
+
+    <button class="btn" style="margin-bottom:10px" onclick="openAdd()">+ Add transaction</button>
+    <div class="card" id="manageSummary" style="display:none;margin-bottom:10px;padding:12px"></div>
+    <div class="card" id="catList"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn sec" style="width:auto;padding:5px 12px" id="editCatsBtn" onclick="toggleEditCats()">Manage</button></div>
+    <div class="card" id="chartCard" style="margin-top:14px">
       <h2 style="margin-top:2px">Where it goes</h2>
       <div class="seg" id="pieToggle" style="margin-bottom:12px">
         <button class="on" data-pie="cat" onclick="setPie('cat')">Categories</button>
@@ -258,13 +257,7 @@ canvas{max-width:100%;}
       <canvas id="chart" height="200"></canvas>
       <div class="legend" id="legend"></div>
     </div>
-
-    <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Spending by category</h2><button class="btn sec" style="width:auto;padding:5px 12px" id="editCatsBtn" onclick="toggleEditCats()">Manage</button></div>
-    <button class="btn" style="margin-bottom:10px" onclick="openAdd()">+ Add transaction</button>
-    <p class="sub" id="targetNote">Tap a category to see its transactions. Tap <b>Manage</b> to add or edit your categories.</p>
-    <div class="card" id="manageSummary" style="display:none;margin-bottom:10px;padding:12px"></div>
-    <div class="card" id="catList"></div>
-    <div style="display:flex;justify-content:center;margin-top:14px"><button class="btn sec" style="width:auto;padding:8px 16px;position:relative" onclick="openMore()">⋯ More <span class="dot" id="moreDot" style="background:var(--red);display:none;margin-left:4px"></span></button></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn sec" style="width:auto;padding:8px 16px;position:relative" onclick="openMore()">⋯ More <span class="dot" id="moreDot" style="background:var(--red);display:none;margin-left:4px"></span></button></div>
     </div>
 
     <div id="trendSection" style="display:none">
@@ -297,7 +290,6 @@ canvas{max-width:100%;}
           <select id="aFreq"></select>
           <p class="note" style="margin:6px 0 0">Each time it's due it'll appear under "Monthly &amp; pending" for you to confirm or reject.</p>
         </div>
-        <p class="note" style="margin:8px 0 0">Tap <b>Card</b> for a credit-card payment — it counts toward the category now but only leaves your "left to spend" when the card is paid next month.</p>
       </div>
       <button class="btn sec" id="addViewTx" style="display:none;width:100%;margin-bottom:8px" onclick="viewAddCat()">View transactions</button>
       <div class="row">
@@ -400,7 +392,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 98 · edit repeat &amp; card</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 100 · per-month budgets</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -1148,12 +1140,31 @@ function monthKeysInRange(){
   return keys.length?keys:[mkKey(from.getFullYear(),from.getMonth())];
 }
 function catActiveInMonth(cObj, mk){ if(!cObj) return true; if(cObj.activeFrom && mk < cObj.activeFrom) return false; if(cObj.activeTo && mk > cObj.activeTo) return false; return true; }
+function baseBudgetFor(cObj, mk){                     // the rolling base budget effective in month mk (snapshotted per change)
+  if(!cObj) return 0;
+  const h=cObj.budgets;
+  if(Array.isArray(h) && h.length){
+    let best=null;
+    for(let i=0;i<h.length;i++){ const e=h[i]; if(e && e.from && e.from<=mk && (!best || e.from>best.from)) best=e; }
+    if(best) return +best.amount||0;
+  }
+  return +cObj.amount||0;
+}
+function setCatBudgetFromNow(c, amt){                 // change the base budget for THIS month + future; freeze past months
+  const mkNow=mkKey(new Date().getFullYear(), new Date().getMonth());
+  if(!Array.isArray(c.budgets)) c.budgets=[];
+  if(c.budgets.length===0){ c.budgets.push({from:"0000-01", amount:(+c.amount||0)}); }   // seed the old value so earlier months keep it
+  const e=c.budgets.find(x=>x.from===mkNow);
+  if(e) e.amount=amt; else c.budgets.push({from:mkNow, amount:amt});
+  c.budgets.sort((a,b)=>a.from<b.from?-1:1);
+  c.amount=amt;                                       // mirror the current figure (past is protected by the seeded entry)
+}
 function monthTargetFor(cObj, mk){                    // effective monthly target for a category in month mk
   if(!cObj) return 0;
   if(!catActiveInMonth(cObj, mk)) return 0;           // temporary category: no target outside its active window
   const o=DB.monthTargets && DB.monthTargets[mk];
   if(o){ const v=o[cObj.id]; if(v!=null && v!=="" && !isNaN(+v)) return +v; }
-  return +cObj.amount||0;
+  return baseBudgetFor(cObj, mk);
 }
 function effTargetForPeriod(cObj){                    // sum of effective monthly targets over the timeframe
   if(!cObj) return 0;
@@ -1345,21 +1356,28 @@ function gradeLetter(s){
 function gradeVerdict(s){ return s>=90?"On track": s>=80?"On budget": s>=70?"Slightly over": s>=60?"Over budget":"Well over budget"; }
 const GRADECOL={green:["rgba(16,185,129,.16)","var(--green)"],amber:["rgba(245,158,11,.18)","var(--amber)"],orange:["rgba(255,122,0,.16)","var(--orange)"],red:["rgba(244,63,94,.16)","var(--red)"]};
 function gradeBand(s){ return s>=80?"green": s>=70?"amber": s>=60?"orange":"red"; }
-function renderGrade(){
-  const card=document.getElementById("gradeCard"); if(!card) return;
-  const g=gradeStats();
-  if(!g.show){ card.style.display="none"; return; }
-  card.style.display="block";
-  const band=GRADECOL[gradeBand(g.score)];
-  const box=document.getElementById("gradeLetter");
-  box.textContent=gradeLetter(g.score); box.style.background=band[0]; box.style.color=band[1];
-  document.getElementById("gradeVerdict").textContent=gradeVerdict(g.score);
+function gradeDetailText(g){
   let det=`Flexible spend ${gbp(g.actWants)} of your ${gbp(g.expWantsFull)} budget.`;
   if(g.partial) det+=` About ${gbp(g.expWantsPaced)} expected by today.`;
   if(g.billPen>0) det+=` Bills ${gbp(g.billOver)} over.`;
   if(g.savPen>0) det+=` Savings behind pace.`;
   if(g.early) det+=` Early days — this will settle.`;
-  document.getElementById("gradeDetail").textContent=det;
+  return det;
+}
+function renderGrade(){
+  const badge=document.getElementById("mbGrade"); if(!badge) return;
+  const g=gradeStats();
+  if(!g.show){ badge.style.display="none"; return; }
+  badge.style.display="block";
+  const band=GRADECOL[gradeBand(g.score)];
+  badge.textContent=gradeLetter(g.score); badge.style.background=band[0]; badge.style.color=band[1];
+}
+function openGradeInfo(){
+  const body=document.getElementById("gradeInfoBody"); if(!body) return;
+  const g=gradeStats();
+  if(!g.show){ body.innerHTML='<p class="note">Add a flexible spending budget to a category to get a monthly grade.</p>'; }
+  else { body.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:6px">'+gradeVerdict(g.score)+' · '+gradeLetter(g.score)+'</div><p class="note">'+gradeDetailText(g)+'</p>'; }
+  const m=document.getElementById("gradeInfoModal"); if(m) m.classList.add("on");
 }
 /* ============================================================= RENDER DASHBOARD */
 let chart;
@@ -2286,7 +2304,7 @@ function saveCatEdit(){
   if(CEDIT){ c=allCats().find(x=>x.id===CEDIT); if(!c){ closeCatModal(); return; }
     if(name!==c.name && (catByName(name)||INCOME_CATS.indexOf(name)>=0)){ toast("That name already exists"); return; }
     const old=c.name; if(name!==old){ (DB.txns||[]).forEach(t=>{ if(t.category===old) t.category=name; }); (DB.recurring||[]).forEach(r=>{ if(r.category===old) r.category=name; }); }
-    c.name=name; c.group=group; c.flex=flex; if(!isNaN(amt)) c.amount=amt; c.activeFrom=af; c.activeTo=at;
+    c.name=name; c.group=group; c.flex=flex; if(!isNaN(amt)) setCatBudgetFromNow(c, amt); c.activeFrom=af; c.activeTo=at;
   } else {
     if(catByName(name)||INCOME_CATS.indexOf(name)>=0){ toast("That name already exists"); return; }
     if(!Array.isArray(DB.categories)) DB.categories=[];
