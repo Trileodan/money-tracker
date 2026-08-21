@@ -393,11 +393,15 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 103 · flexible-spend grade</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 105 · settings toggles</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
         <p class="note">Set your take-home pay, how often you're paid, and when. Add a new dated figure whenever your pay changes — earlier months keep the figure that applied then.</p>
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0;margin-bottom:8px">
+          <input type="checkbox" id="selfEmpChk" style="width:auto" onchange="toggleSelfEmployed(this.checked)"> I'm self-employed — enter income manually on the dashboard
+        </label>
+        <div id="incFieldsWrap">
         <div class="field"><label>How often you're paid</label>
           <select id="payFreq" onchange="changePayFreq(this.value)"><option value="monthly">Monthly</option><option value="fourweekly">Every 4 weeks</option><option value="fortnightly">Every 2 weeks</option><option value="weekly">Weekly</option></select>
         </div>
@@ -414,11 +418,16 @@ canvas{max-width:100%;}
           <button class="btn sec" style="margin-top:8px" onclick="addIncome()">Save income figure</button>
         </div>
         <p class="tiny muted" id="regEquiv" style="margin-top:8px"></p>
+        </div>
       </div>
     </div>
     <div class="acc" id="accCC">
       <div class="acc-head" onclick="toggleAcc('accCC')"><span>Credit card</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0;margin-bottom:8px">
+          <input type="checkbox" id="noCardChk" style="width:auto" onchange="toggleNoCard(this.checked)"> I don't use a credit card
+        </label>
+        <div id="ccFieldsWrap">
         <p class="note">Mark a payment "Paid on credit card" when adding it. It counts toward the category straight away, but only affects your left-to-spend when the card payment leaves — a month in arrears (all of a month's card spend is paid on your card day the following month).</p>
         <p class="note" style="margin-top:2px">Your card's billing cycle — used by the Cash Flow tab to know when your card payment leaves.</p>
         <div class="row">
@@ -427,6 +436,7 @@ canvas{max-width:100%;}
           <div><label>Payment day</label><input type="number" id="ccPayIn" min="1" max="31" inputmode="numeric" onchange="saveCcSettings()"></div>
         </div>
         <div class="field"><label>Default for new payments</label><select id="ccDefaultIn" onchange="saveCcSettings()"><option value="balance">Pay from balance</option><option value="credit">Pay on credit card</option></select></div>
+        </div>
       </div>
     </div>
     <div class="acc" id="accData">
@@ -813,8 +823,7 @@ canvas{max-width:100%;}
       <option value="flexible">Flexible — a soft spending aim</option>
       <option value="savings">Savings</option>
     </select></div>
-    <div class="field"><label>Monthly budget (£)</label><input type="number" id="ecAmount" inputmode="decimal" placeholder="£"></div>
-    <div class="field"><label>This month only (£, optional)</label><input type="number" id="ecMonthAmt" inputmode="decimal" placeholder="leave blank to use the monthly budget"></div>
+    <div class="field"><label id="ecAmountLabel">Budget for this month (£)</label><input type="number" id="ecAmount" inputmode="decimal" placeholder="£"><p class="note" id="ecBudgetNote" style="margin:6px 0 0"></p></div>
     <div class="row">
       <div><label>Active from (optional)</label><input type="month" id="ecFrom"></div>
       <div><label>Active until (optional)</label><input type="month" id="ecTo"></div>
@@ -927,7 +936,7 @@ function payFreqDays(f){ return f==="weekly"?7:f==="fortnightly"?14:f==="fourwee
 function payInit(){ if(!DB.pay||typeof DB.pay!=="object") DB.pay={}; if(!PAY_PPY[DB.pay.freq]) DB.pay.freq="monthly"; if(!(DB.pay.payDay>=1&&DB.pay.payDay<=28)) DB.pay.payDay=(DB.bank&&DB.bank.payDay)||25; if(DB.pay.anchor===undefined) DB.pay.anchor=null; }
 function payLabel(f){ return f==="fourweekly"?"per 4 weeks":f==="fortnightly"?"per fortnight":f==="weekly"?"per week":"per month"; }
 function payAmountForMonth(y,m){ const key=y*12+m; let amt=null; incomeHist().forEach(h=>{ const pp=h.date.split("-"); const k=(+pp[0])*12+((+pp[1])-1); if(k<=key) amt=(+h.amount||0); }); if(amt===null){ const f=incomeHist()[0]; amt=f?(+f.amount||0):0; } return amt; }
-function incomeForMonth(y,m){ payInit(); return payAmountForMonth(y,m)*(PAY_PPY[DB.pay.freq]||12)/12; }   // per-pay -> monthly equivalent (budgets/grades)
+function incomeForMonth(y,m){ payInit(); if(DB.pay.selfEmployed) return 0; return payAmountForMonth(y,m)*(PAY_PPY[DB.pay.freq]||12)/12; }   // per-pay -> monthly equivalent (budgets/grades)
 function incomeForRange(fy,fm,ty,tm){ let s=0,y=fy,m=fm,g=0; while(y*12+m<=ty*12+tm && g++<480){ s+=incomeForMonth(y,m); m++; if(m>11){m=0;y++;} } return s; }
 function currentMonthlyIncome(){ const n=new Date(); return incomeForMonth(n.getFullYear(), n.getMonth()); }
 function isOrphan(t){ return !!t.category && INCOME_CATS.indexOf(t.category)<0 && !catByName(t.category); }
@@ -1161,12 +1170,36 @@ function setCatBudgetFromNow(c, amt){                 // change the base budget 
   c.budgets.sort((a,b)=>a.from<b.from?-1:1);
   c.amount=amt;                                       // mirror the current figure (past is protected by the seeded entry)
 }
-function monthTargetFor(cObj, mk){                    // effective monthly target for a category in month mk
+function monthTargetFor(cObj, mk){                    // effective monthly budget for a category in month mk
   if(!cObj) return 0;
-  if(!catActiveInMonth(cObj, mk)) return 0;           // temporary category: no target outside its active window
-  const o=DB.monthTargets && DB.monthTargets[mk];
-  if(o){ const v=o[cObj.id]; if(v!=null && v!=="" && !isNaN(+v)) return +v; }
-  return baseBudgetFor(cObj, mk);
+  if(!catActiveInMonth(cObj, mk)) return 0;           // temporary category: no budget outside its active window
+  const id=cObj.id, MT=DB.monthTargets||{};
+  const here=MT[mk]; if(here){ const v=here[id]; if(v!=null && v!=="" && !isNaN(+v)) return +v; }   // explicit budget set for this month
+  let bestK=null;                                      // else carry forward the most recent PRIOR month's budget
+  for(const k in MT){ if(k<mk){ const v=MT[k] && MT[k][id]; if(v!=null && v!=="" && !isNaN(+v)){ if(bestK===null || k>bestK) bestK=k; } } }
+  if(bestK!==null) return +MT[bestK][id];
+  return baseBudgetFor(cObj, mk);                      // legacy fallback for months before any per-month budget
+}
+function mkLabel(mk){ const pp=mk.split("-"); return new Date(+pp[0],(+pp[1])-1,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
+function dashEditMonthKey(){                           // which month a budget edit applies to (from the dashboard timeframe)
+  const n=new Date();
+  if(PERIOD && PERIOD.key==="lastmonth"){ const d=new Date(n.getFullYear(),n.getMonth()-1,1); return mkKey(d.getFullYear(),d.getMonth()); }
+  if(PERIOD && PERIOD.key==="monthly"){ const y=(PERIOD.selY==null?n.getFullYear():PERIOD.selY), m=(PERIOD.selM==null?n.getMonth():PERIOD.selM); return mkKey(y,m); }
+  return mkKey(n.getFullYear(), n.getMonth());
+}
+function expectedIncomeForMonth(y,m){ return (salaryInMonth(y,m)||0) + (additionalIncomeForMonth(y,m)||0); }
+function pinBudgetGaps(cObj, fromMk){                  // freeze later un-set months at their current value so a past edit can't leak forward
+  const n=new Date(), nowMk=mkKey(n.getFullYear(),n.getMonth());
+  if(!DB.monthTargets) DB.monthTargets={};
+  const pp=fromMk.split("-"); let cur=new Date(+pp[0],(+pp[1])-1,1); cur.setMonth(cur.getMonth()+1);
+  let guard=0;
+  while(guard++<240){
+    const mk=mkKey(cur.getFullYear(),cur.getMonth());
+    if(mk>nowMk) break;
+    const cell=DB.monthTargets[mk], has=cell && cell[cObj.id]!=null && cell[cObj.id]!=="";
+    if(!has){ const val=monthTargetFor(cObj, mk); if(!DB.monthTargets[mk]) DB.monthTargets[mk]={}; DB.monthTargets[mk][cObj.id]=val; }
+    cur.setMonth(cur.getMonth()+1);
+  }
 }
 function effTargetForPeriod(cObj){                    // sum of effective monthly targets over the timeframe
   if(!cObj) return 0;
@@ -1538,10 +1571,13 @@ function paymentsOut(from,to){    // dashboard = accrual: all spend counts on it
   return sum;
 }
 function ccPendingTotal(){ const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); let sum=0; (DB.txns||[]).forEach(t=>{ if(t.amount>=0||!t.cc) return; const c=catByName(t.category); if(c && c.group==="Savings") return; if(ccSettleDate(t.date)>today) sum+=-(+t.amount||0); }); return sum; }
+function ccEnabled(){ payInit(); return !DB.pay.noCard; }
+function toggleNoCard(v){ payInit(); DB.pay.noCard=!!v; save(); updCcUI(); try{ refreshAll(); }catch(e){} }
+function toggleSelfEmployed(v){ payInit(); DB.pay.selfEmployed=!!v; DB.regularIncome={amount:currentMonthlyIncome(), freq:"monthly"}; save(); updPayUI(); try{ updRegEquiv(); }catch(e){} try{ renderIncomeList(); }catch(e){} try{ refreshAll(); }catch(e){} }
 function saveCcSettings(){ payInit(); const gi=(id,def)=>{ let v=parseInt((document.getElementById(id)||{}).value,10); if(isNaN(v)) v=def; return Math.max(1,Math.min(31,v)); }; DB.pay.ccStart=gi("ccStartIn",1); DB.pay.ccEnd=gi("ccEndIn",31); DB.pay.ccPay=gi("ccPayIn",28); DB.pay.ccDefault=(document.getElementById("ccDefaultIn")||{}).value||"balance"; save(); try{ renderCash(); }catch(e){} }
-function updCcUI(){ payInit(); const set=(id,v)=>{ const e=document.getElementById(id); if(e && document.activeElement!==e) e.value=v; }; set("ccStartIn",ccStart()); set("ccEndIn",ccEnd()); set("ccPayIn",ccPay()); const s=document.getElementById("ccDefaultIn"); if(s && document.activeElement!==s) s.value=DB.pay.ccDefault||"balance"; }
+function updCcUI(){ payInit(); const set=(id,v)=>{ const e=document.getElementById(id); if(e && document.activeElement!==e) e.value=v; }; set("ccStartIn",ccStart()); set("ccEndIn",ccEnd()); set("ccPayIn",ccPay()); const s=document.getElementById("ccDefaultIn"); if(s && document.activeElement!==s) s.value=DB.pay.ccDefault||"balance"; const nc=!!DB.pay.noCard; const chk=document.getElementById("noCardChk"); if(chk) chk.checked=nc; const wrap=document.getElementById("ccFieldsWrap"); if(wrap){ wrap.style.opacity=nc?"0.4":"1"; wrap.style.pointerEvents=nc?"none":"auto"; } }
 function salaryBetween(from,to,capToday){
-  payInit(); const f=DB.pay.freq||"monthly";
+  payInit(); if(DB.pay.selfEmployed) return 0; const f=DB.pay.freq||"monthly";
   const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   const lo=new Date(from.getFullYear(),from.getMonth(),from.getDate());
   let hi=new Date(to.getFullYear(),to.getMonth(),to.getDate());
@@ -1561,13 +1597,13 @@ function salaryBetween(from,to,capToday){
 }
 let ADD_CTX_CAT="";
 function potAddStatus(cat){ const c=catByName(cat); if(!c) return ""; const n=new Date(); const paid=Math.max(0,catNetInMonth(cat,n.getFullYear(),n.getMonth())); const bud=monthTargetFor(c,mkKey(n.getFullYear(),n.getMonth())); return bud>0 ? (gbp(paid)+" of "+gbp(bud)+" this month") : (gbp(paid)+" spent this month"); }
-function openAdd(){ try{ syncCatSelects(); }catch(e){} try{ setFlow("out"); }catch(e){} ADD_CTX_CAT=""; const t=document.getElementById("addTitle"); if(t) t.textContent="Add transaction"; const ps=document.getElementById("addPotStatus"); if(ps) ps.style.display="none"; const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="none"; const _cc=document.getElementById("aCC"); if(_cc) setIconToggle("aCC",(DB.pay&&DB.pay.ccDefault==="credit")); setIconToggle("aRec",false); setIconToggle("aOneoff",false); const _cw=document.getElementById("aCCWrap"); if(_cw) _cw.style.display=(FLOW==="out")?"block":"none"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); }
-function openPotAdd(cat){ try{ syncCatSelects(); }catch(e){} ADD_CTX_CAT=cat; try{ setFlow("out"); }catch(e){} const c=document.getElementById("aCat"); if(c && [...c.options].some(o=>o.value===cat)) c.value=cat; const t=document.getElementById("addTitle"); if(t) t.textContent="Add to "+cat; const ps=document.getElementById("addPotStatus"); if(ps){ const st=potAddStatus(cat); ps.textContent=st; ps.style.display=st?"block":"none"; } const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="block"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const am=document.getElementById("aAmount"); if(am) am.value=""; const de=document.getElementById("aDesc"); if(de) de.value=""; const _cc=document.getElementById("aCC"); if(_cc) setIconToggle("aCC",(DB.pay&&DB.pay.ccDefault==="credit")); setIconToggle("aRec",false); setIconToggle("aOneoff",false); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); if(am) am.focus(); }
+function openAdd(){ try{ syncCatSelects(); }catch(e){} try{ setFlow("out"); }catch(e){} ADD_CTX_CAT=""; const t=document.getElementById("addTitle"); if(t) t.textContent="Add transaction"; const ps=document.getElementById("addPotStatus"); if(ps) ps.style.display="none"; const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="none"; const _cc=document.getElementById("aCC"); if(_cc) setIconToggle("aCC",(ccEnabled() && DB.pay.ccDefault==="credit")); setIconToggle("aRec",false); setIconToggle("aOneoff",false); const _cw=document.getElementById("aCCWrap"); if(_cw) _cw.style.display=(FLOW==="out" && ccEnabled())?"block":"none"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); }
+function openPotAdd(cat){ try{ syncCatSelects(); }catch(e){} ADD_CTX_CAT=cat; try{ setFlow("out"); }catch(e){} const c=document.getElementById("aCat"); if(c && [...c.options].some(o=>o.value===cat)) c.value=cat; const t=document.getElementById("addTitle"); if(t) t.textContent="Add to "+cat; const ps=document.getElementById("addPotStatus"); if(ps){ const st=potAddStatus(cat); ps.textContent=st; ps.style.display=st?"block":"none"; } const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="block"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const am=document.getElementById("aAmount"); if(am) am.value=""; const de=document.getElementById("aDesc"); if(de) de.value=""; const _cc=document.getElementById("aCC"); if(_cc) setIconToggle("aCC",(ccEnabled() && DB.pay.ccDefault==="credit")); setIconToggle("aRec",false); setIconToggle("aOneoff",false); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); if(am) am.focus(); }
 function openAddIncome(){ try{ syncCatSelects(); ADD_CTX_CAT=""; setFlow("in"); const c=document.getElementById("aCat"); if(c && [...c.options].some(o=>o.value==="Other Income")) c.value="Other Income"; const t=document.getElementById("addTitle"); if(t) t.textContent="Add income"; const ps=document.getElementById("addPotStatus"); if(ps) ps.style.display="none"; const vt=document.getElementById("addViewTx"); if(vt) vt.style.display="none"; const dt=document.getElementById("aDate"); if(dt) dt.value=todayISO(); const m=document.getElementById("addModal"); if(m) m.classList.add("on"); const a=document.getElementById("aAmount"); if(a) a.focus(); }catch(e){} }
 function closeAdd(){ const m=document.getElementById("addModal"); if(m) m.classList.remove("on"); }
 function viewAddCat(){ const c=ADD_CTX_CAT; closeAdd(); if(c) openHistory(c); }
-function salaryInMonth(y,m){ payInit(); const f=DB.pay.freq||"monthly"; const mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0); if(f==="monthly"){ return payAmountForMonth(y,m); } const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0; let d=new Date(anchor),guard=0,sum=0; while(d>mStart && guard++<5000) d.setDate(d.getDate()-step); for(; d<=mEnd && guard++<5000; d.setDate(d.getDate()+step)){ if(d<mStart) continue; sum+=payAmountForMonth(y,m); } return sum; }
-function salaryReceivedInMonthToDate(y,m){ payInit(); const f=DB.pay.freq||"monthly"; const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); const mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0); const upto=today<mEnd?today:mEnd; if(f==="monthly"){ const pd=DB.pay.payDay||25, dim=mEnd.getDate(), payDate=new Date(y,m,Math.min(pd,dim)); return payDate<=upto?payAmountForMonth(y,m):0; } const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0; let d=new Date(anchor),guard=0,sum=0; while(d>mStart && guard++<5000) d.setDate(d.getDate()-step); for(; d<=mEnd && guard++<5000; d.setDate(d.getDate()+step)){ if(d<mStart||d>upto) continue; sum+=payAmountForMonth(y,m); } return sum; }
+function salaryInMonth(y,m){ payInit(); if(DB.pay.selfEmployed) return 0; const f=DB.pay.freq||"monthly"; const mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0); if(f==="monthly"){ return payAmountForMonth(y,m); } const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0; let d=new Date(anchor),guard=0,sum=0; while(d>mStart && guard++<5000) d.setDate(d.getDate()-step); for(; d<=mEnd && guard++<5000; d.setDate(d.getDate()+step)){ if(d<mStart) continue; sum+=payAmountForMonth(y,m); } return sum; }
+function salaryReceivedInMonthToDate(y,m){ payInit(); if(DB.pay.selfEmployed) return 0; const f=DB.pay.freq||"monthly"; const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()); const mStart=new Date(y,m,1), mEnd=new Date(y,m+1,0); const upto=today<mEnd?today:mEnd; if(f==="monthly"){ const pd=DB.pay.payDay||25, dim=mEnd.getDate(), payDate=new Date(y,m,Math.min(pd,dim)); return payDate<=upto?payAmountForMonth(y,m):0; } const step=payFreqDays(f), anchor=DB.pay.anchor?parse(DB.pay.anchor):null; if(!anchor||!step) return 0; let d=new Date(anchor),guard=0,sum=0; while(d>mStart && guard++<5000) d.setDate(d.getDate()-step); for(; d<=mEnd && guard++<5000; d.setDate(d.getDate()+step)){ if(d<mStart||d>upto) continue; sum+=payAmountForMonth(y,m); } return sum; }
 function renderMonthBars(){
   const card=document.getElementById("monthBars"); if(!card) return;
   const n=new Date(), cy=n.getFullYear(), cm=n.getMonth();
@@ -1871,7 +1907,7 @@ let FLOW="out";
 function setFlow(f){ FLOW=f; document.querySelectorAll("#flowSeg button").forEach(b=>{ b.classList.toggle("on",b.dataset.flow===f); b.classList.toggle("in",f==="in"); b.classList.toggle("out",f==="out"); });
   // smart default category
   document.getElementById("aCat").value = f==="in"?"Wages":"Food & Drink";
-  const _cw=document.getElementById("aCCWrap"); if(_cw) _cw.style.display=(f==="out")?"block":"none";
+  const _cw=document.getElementById("aCCWrap"); if(_cw) _cw.style.display=(f==="out" && ccEnabled())?"block":"none";
 }
 function setIconToggle(id,on){ const b=document.getElementById(id); if(!b) return; b.classList.toggle("on",!!on); const fw=(id==="aRec")?"aFreqWrap":(id==="tRec"?"tFreqWrap":null); if(fw){ const w=document.getElementById(fw); if(w) w.style.display=on?"block":"none"; } }
 function toggleIcon(id){ const b=document.getElementById(id); if(!b) return; setIconToggle(id,!b.classList.contains("on")); }
@@ -1989,7 +2025,7 @@ function editRec(id){
   setIconToggle("eCC", !!r.cc);
   document.getElementById("recModal").classList.add("on");
 }
-function eSetFlow(f){ EFLOW=f; document.querySelectorAll("#eFlowSeg button").forEach(b=>{ b.classList.toggle("on",b.dataset.flow===f); b.classList.toggle("in",f==="in"); b.classList.toggle("out",f==="out"); }); const _w=document.getElementById("eCCWrap"); if(_w) _w.style.display=(f==="out")?"block":"none"; }
+function eSetFlow(f){ EFLOW=f; document.querySelectorAll("#eFlowSeg button").forEach(b=>{ b.classList.toggle("on",b.dataset.flow===f); b.classList.toggle("in",f==="in"); b.classList.toggle("out",f==="out"); }); const _w=document.getElementById("eCCWrap"); if(_w) _w.style.display=(f==="out" && ccEnabled())?"block":"none"; }
 function closeRecModal(){ document.getElementById("recModal").classList.remove("on"); EDIT_ID=null; }
 function saveRecEdit(){
   const r=DB.recurring.find(x=>x.id===EDIT_ID); if(!r){ closeRecModal(); return; }
@@ -2137,7 +2173,7 @@ function editTx(id){
   const _tf=document.getElementById("tFreq"); if(_tf) _tf.value=(_rec&&_rec.freq)?_rec.freq:"monthly";
   document.getElementById("txModal").classList.add("on");
 }
-function txSetFlow(f){ TFLOW=f; document.querySelectorAll("#tFlowSeg button").forEach(b=>{ b.classList.toggle("on",b.dataset.flow===f); b.classList.toggle("in",f==="in"); b.classList.toggle("out",f==="out"); }); const _w=document.getElementById("tCCWrap"); if(_w) _w.style.display=(f==="out")?"block":"none"; }
+function txSetFlow(f){ TFLOW=f; document.querySelectorAll("#tFlowSeg button").forEach(b=>{ b.classList.toggle("on",b.dataset.flow===f); b.classList.toggle("in",f==="in"); b.classList.toggle("out",f==="out"); }); const _w=document.getElementById("tCCWrap"); if(_w) _w.style.display=(f==="out" && ccEnabled())?"block":"none"; }
 function closeTxModal(){ document.getElementById("txModal").classList.remove("on"); TX_ID=null; }
 function saveTxEdit(){
   const t=DB.txns.find(x=>x.id===TX_ID); if(!t){ closeTxModal(); return; }
@@ -2191,6 +2227,7 @@ function updPayUI(){
   const di=document.getElementById("payDayIn"); if(di && document.activeElement!==di) di.value=DB.pay.payDay||25;
   const ai=document.getElementById("payAnchorIn"); if(ai && document.activeElement!==ai) ai.value=DB.pay.anchor||"";
   const pl=document.getElementById("payPerLbl"); if(pl) pl.textContent=payLabel(DB.pay.freq);
+  const se=!!DB.pay.selfEmployed; const chk=document.getElementById("selfEmpChk"); if(chk) chk.checked=se; const wrap=document.getElementById("incFieldsWrap"); if(wrap){ wrap.style.opacity=se?"0.4":"1"; wrap.style.pointerEvents=se?"none":"auto"; }
 }
 function changePayFreq(nf){
   payInit(); const of=DB.pay.freq; if(!PAY_PPY[nf]) nf="monthly";
@@ -2267,23 +2304,25 @@ function renderCatCfg(){
 }
 let CEDIT=null;
 function editCat(id){ const c=allCats().find(x=>x.id===id); if(!c) return; CEDIT=id;
-  document.getElementById("catModalTitle").textContent="Edit category";
+  const editMk=dashEditMonthKey();
+  document.getElementById("catModalTitle").textContent="Edit · "+mkLabel(editMk);
   document.getElementById("ecName").value=c.name;
   document.getElementById("ecType").value=(c.group==="Savings"?"savings":(isFlex(c)?"flexible":"fixed"));
-  document.getElementById("ecAmount").value=(c.amount!=null?c.amount:"");
-  const mk=mkKey(new Date().getFullYear(),new Date().getMonth());
-  const ov=(DB.monthTargets&&DB.monthTargets[mk])?DB.monthTargets[mk][c.id]:null;
-  document.getElementById("ecMonthAmt").value=(ov!=null&&ov!==""?ov:"");
+  const bv=monthTargetFor(c, editMk);
+  document.getElementById("ecAmount").value=(bv>0?bv:"");
   document.getElementById("ecFrom").value=c.activeFrom||""; document.getElementById("ecTo").value=c.activeTo||"";
+  const note=document.getElementById("ecBudgetNote"); if(note) note.textContent="Applies to "+mkLabel(editMk)+" only. Later months use this as their starting default until you change them.";
   document.getElementById("ecDelete").style.display="block";
   document.getElementById("catModal").classList.add("on");
 }
 function editCatByName(name){ const c=catByName(name); if(c) editCat(c.id); }
 function openNewCat(){ CEDIT=null;
+  const editMk=dashEditMonthKey();
   document.getElementById("catModalTitle").textContent="New category";
   document.getElementById("ecName").value=""; document.getElementById("ecType").value="flexible";
-  document.getElementById("ecAmount").value=""; document.getElementById("ecMonthAmt").value="";
+  document.getElementById("ecAmount").value="";
   document.getElementById("ecFrom").value=""; document.getElementById("ecTo").value="";
+  const note=document.getElementById("ecBudgetNote"); if(note) note.textContent="Applies to "+mkLabel(editMk)+" only. Later months use this as their starting default until you change them.";
   document.getElementById("ecDelete").style.display="none";
   document.getElementById("catModal").classList.add("on");
 }
@@ -2297,20 +2336,30 @@ function saveCatEdit(){
   const flex = (type==="flexible");
   const amt=parseFloat(document.getElementById("ecAmount").value);
   const af=document.getElementById("ecFrom").value||"", at=document.getElementById("ecTo").value||"";
+  const editMk=dashEditMonthKey();
+  // income cap: total budgeted for the edited month can't exceed that month's expected income
+  if(!isNaN(amt) && !(DB.pay&&DB.pay.selfEmployed)){
+    const pp=editMk.split("-"); const inc=expectedIncomeForMonth(+pp[0],(+pp[1])-1);
+    let total=amt; activeCats().forEach(x=>{ if(x.id!==CEDIT) total+=monthTargetFor(x, editMk); });
+    if(inc>0 && total > inc + 0.005){ toast("That would budget "+gbp0(total)+" — more than your expected income of "+gbp0(inc)+" this month"); return; }
+  }
   let c;
   if(CEDIT){ c=allCats().find(x=>x.id===CEDIT); if(!c){ closeCatModal(); return; }
     if(name!==c.name && (catByName(name)||INCOME_CATS.indexOf(name)>=0)){ toast("That name already exists"); return; }
     const old=c.name; if(name!==old){ (DB.txns||[]).forEach(t=>{ if(t.category===old) t.category=name; }); (DB.recurring||[]).forEach(r=>{ if(r.category===old) r.category=name; }); }
-    c.name=name; c.group=group; c.flex=flex; if(!isNaN(amt)) setCatBudgetFromNow(c, amt); c.activeFrom=af; c.activeTo=at;
+    c.name=name; c.group=group; c.flex=flex; c.activeFrom=af; c.activeTo=at;
   } else {
     if(catByName(name)||INCOME_CATS.indexOf(name)>=0){ toast("That name already exists"); return; }
     if(!Array.isArray(DB.categories)) DB.categories=[];
-    c={id:"c"+Date.now()+Math.random().toString(36).slice(2,5), name, group, flex, amount:isNaN(amt)?0:amt, enabled:true, color:nextColor(), activeFrom:af, activeTo:at};
+    c={id:"c"+Date.now()+Math.random().toString(36).slice(2,5), name, group, flex, amount:0, enabled:true, color:nextColor(), activeFrom:af, activeTo:at};
     DB.categories.push(c);
   }
-  const mkNow=mkKey(new Date().getFullYear(),new Date().getMonth()); const mo=document.getElementById("ecMonthAmt").value;
-  if(!DB.monthTargets) DB.monthTargets={}; if(!DB.monthTargets[mkNow]) DB.monthTargets[mkNow]={};
-  if(mo===""||mo==null){ delete DB.monthTargets[mkNow][c.id]; } else { DB.monthTargets[mkNow][c.id]=parseFloat(mo)||0; }
+  if(!isNaN(amt)){
+    if(!DB.monthTargets) DB.monthTargets={};
+    pinBudgetGaps(c, editMk);                          // freeze later gap months first so this edit only changes editMk
+    if(!DB.monthTargets[editMk]) DB.monthTargets[editMk]={};
+    DB.monthTargets[editMk][c.id]=amt;
+  }
   save(); closeCatModal(); syncCatSelects(); try{ renderCatCfg(); }catch(e){} renderDash(); toast("Saved ✓");
 }
 function setCatAmount(id,v){ const c=allCats().find(x=>x.id===id); if(c){ c.amount=parseFloat(v)||0; save(); renderCatCfg(); renderDash(); } }
