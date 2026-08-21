@@ -400,7 +400,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 96 · cash-flow card bills</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 98 · edit repeat &amp; card</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -853,6 +853,16 @@ canvas{max-width:100%;}
       <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;color:var(--txt);letter-spacing:0">
         <input type="checkbox" id="tPriv" style="width:auto"> Hide details from other users
       </label>
+    </div>
+    <div class="field">
+      <div style="display:flex;gap:10px;align-items:center">
+        <button type="button" id="tRec" class="icontog" onclick="toggleIcon('tRec')" title="Repeat this transaction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Repeat</button>
+        <span id="tCCWrap" style="display:none"><button type="button" id="tCC" class="icontog" onclick="toggleIcon('tCC')" title="Paid on credit card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Card</button></span>
+      </div>
+      <div id="tFreqWrap" style="display:none;margin-top:10px">
+        <label>How often</label>
+        <select id="tFreq"></select>
+      </div>
     </div>
     <div class="row">
       <button class="btn sec" onclick="closeTxModal()">Cancel</button>
@@ -1439,7 +1449,7 @@ function renderCash(){
   const nowBal=cashProjected(today);
   const nEl=document.getElementById("cashNow"), note=document.getElementById("cashAnchorNote");
   if(nowBal==null){ if(nEl){ nEl.textContent="—"; nEl.style.color=""; } if(note) note.textContent="Set your actual balance below to start projecting."; }
-  else { if(nEl){ nEl.textContent=gbp(nowBal); nEl.style.color=nowBal<0?"var(--red)":(nowBal>2000?"#e8b923":"var(--green)"); } const mk=bankMarker(); if(note) note.textContent=mk?("From your balance of "+gbp(mk.amount)+" on "+fmtDateY(mk.date)):""; }
+  else { if(nEl){ nEl.textContent=gbp(nowBal); nEl.style.color=cashCol(nowBal); } const mk=bankMarker(); if(note) note.textContent=mk?("From your balance of "+gbp(mk.amount)+" on "+fmtDateY(mk.date)):""; }
   renderCashBalList(); renderCashWarn(); renderCashTimeline();
 }
 
@@ -1470,21 +1480,23 @@ function cashEvents(mStart,mEnd){
   evs.sort((a,b)=> a.date-b.date || (a.card?1:0)-(b.card?1:0));
   return evs;
 }
+function cashCol(b){ return (b==null)?"var(--muted)":(b<500?"#ff2d2d":(b<1000?"#ffd400":"var(--green)")); }
 function renderCashTimeline(){
   const el=document.getElementById("cashTimeline"); if(!el) return;
   const now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   if(!bankMarker()){ el.innerHTML='<div class="tiny muted" style="padding:6px 2px">Set your actual balance below to see your cash-flow timeline.</div>'; return; }
   const base=new Date(today.getFullYear(), today.getMonth()+CASH_MONTH, 1);
-  const mStart=new Date(base.getFullYear(), base.getMonth(), 1);
+  let mStart=new Date(base.getFullYear(), base.getMonth(), 1);
+  if(CASH_MONTH===0) mStart=new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const mEnd=new Date(base.getFullYear(), base.getMonth()+1, 0); mEnd.setHours(23,59,59,999);
   const evs=cashEvents(mStart,mEnd);
   let html='<h2 style="margin:2px 0 8px">'+base.toLocaleDateString("en-GB",{month:"long",year:"numeric"})+'</h2>';
-  if(!evs.length){ el.innerHTML=html+'<div class="tiny muted" style="padding:6px 2px">No scheduled payments or income in this month.</div>'; return; }
+  if(!evs.length){ el.innerHTML=html+'<div class="tiny muted" style="padding:6px 2px">Nothing more due this month.</div>'; return; }
   html+=evs.map(e=>{
     const bal=cashProjected(e.date);
     const isToday = (e.date.getFullYear()===today.getFullYear()&&e.date.getMonth()===today.getMonth()&&e.date.getDate()===today.getDate());
     const amtCol=e.amount>=0?"var(--green)":"var(--txt)";
-    const balCol=(bal==null)?"var(--muted)":(bal<1?"var(--red)":(bal>2000?"#e8b923":"var(--green)"));
+    const balCol=cashCol(bal);
     const sign=e.amount>=0?"+":"−";
     return `<div class="tx" style="align-items:center${isToday?';background:rgba(232,185,35,.06)':''}">
       <div class="l"><div class="d">${e.card?'💳 ':''}${e.desc}</div><div class="s">${e.date.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div></div>
@@ -1848,7 +1860,7 @@ function setFlow(f){ FLOW=f; document.querySelectorAll("#flowSeg button").forEac
   document.getElementById("aCat").value = f==="in"?"Wages":"Food & Drink";
   const _cw=document.getElementById("aCCWrap"); if(_cw) _cw.style.display=(f==="out")?"block":"none";
 }
-function setIconToggle(id,on){ const b=document.getElementById(id); if(!b) return; b.classList.toggle("on",!!on); if(id==="aRec"){ const w=document.getElementById("aFreqWrap"); if(w) w.style.display=on?"block":"none"; } }
+function setIconToggle(id,on){ const b=document.getElementById(id); if(!b) return; b.classList.toggle("on",!!on); const fw=(id==="aRec")?"aFreqWrap":(id==="tRec"?"tFreqWrap":null); if(fw){ const w=document.getElementById(fw); if(w) w.style.display=on?"block":"none"; } }
 function toggleIcon(id){ const b=document.getElementById(id); if(!b) return; setIconToggle(id,!b.classList.contains("on")); }
 function xClose(btn){ const m=btn&&btn.closest?btn.closest(".modal"):null; if(!m) return; if(m.id==="famScanModal"){ try{closeFamScan();}catch(e){} return; } if(m.id==="impModal"){ try{impCloseSave();}catch(e){} return; } m.classList.remove("on"); }
 function fillCatSelect(sel,withAll,includeDisabled){
@@ -2105,9 +2117,13 @@ function editTx(id){
   document.getElementById("tDesc").value=t.desc||"";
   document.getElementById("tPriv").checked=!!t.priv;
   txSetFlow(t.amount>=0?"in":"out");
+  setIconToggle("tCC", !!t.cc);
+  const _rec = t.recId ? (DB.recurring||[]).find(r=>r.id===t.recId) : null;
+  setIconToggle("tRec", !!_rec);
+  const _tf=document.getElementById("tFreq"); if(_tf) _tf.value=(_rec&&_rec.freq)?_rec.freq:"monthly";
   document.getElementById("txModal").classList.add("on");
 }
-function txSetFlow(f){ TFLOW=f; document.querySelectorAll("#tFlowSeg button").forEach(b=>{ b.classList.toggle("on",b.dataset.flow===f); b.classList.toggle("in",f==="in"); b.classList.toggle("out",f==="out"); }); }
+function txSetFlow(f){ TFLOW=f; document.querySelectorAll("#tFlowSeg button").forEach(b=>{ b.classList.toggle("on",b.dataset.flow===f); b.classList.toggle("in",f==="in"); b.classList.toggle("out",f==="out"); }); const _w=document.getElementById("tCCWrap"); if(_w) _w.style.display=(f==="out")?"block":"none"; }
 function closeTxModal(){ document.getElementById("txModal").classList.remove("on"); TX_ID=null; }
 function saveTxEdit(){
   const t=DB.txns.find(x=>x.id===TX_ID); if(!t){ closeTxModal(); return; }
@@ -2120,6 +2136,13 @@ function saveTxEdit(){
   t.category = cat;
   t.date = document.getElementById("tDate").value || t.date;
   t.desc = document.getElementById("tDesc").value.trim() || cat;
+  t.cc = (TFLOW==="out" && document.getElementById("tCC").classList.contains("on"))?1:0;
+  const _wantRep=document.getElementById("tRec").classList.contains("on"), _freq=document.getElementById("tFreq").value||"monthly";
+  let _rec = t.recId ? (DB.recurring||[]).find(r=>r.id===t.recId) : null;
+  if(_wantRep){
+    if(_rec){ _rec.desc=t.desc; _rec.amount=Math.abs(t.amount); _rec.flow=TFLOW; _rec.category=t.category; _rec.freq=_freq; _rec.anchor=t.date; _rec.cc=t.cc?1:0; }
+    else { const _rid="r"+Date.now()+Math.random().toString(36).slice(2,6); if(!Array.isArray(DB.recurring)) DB.recurring=[]; DB.recurring.push({id:_rid, desc:t.desc, amount:Math.abs(t.amount), flow:TFLOW, category:t.category, freq:_freq, anchor:t.date, cc:t.cc?1:0}); t.recId=_rid; if(!DB.resolved) DB.resolved={}; DB.resolved[_rid+"|"+ymd(parse(t.date))]="confirmed"; }
+  } else if(_rec){ DB.recurring=(DB.recurring||[]).filter(r=>r.id!==t.recId); t.recId=null; }
   save(); closeTxModal(); toast("Saved \u2713"); refreshAll();
 }
 
@@ -3670,6 +3693,7 @@ syncCatSelects();
 const freqOpts=FREQS.map(f=>`<option value="${f.key}"${f.key==="monthly"?" selected":""}>${f.label}</option>`).join("");
 document.getElementById("aFreq").innerHTML=freqOpts;
 document.getElementById("eFreq").innerHTML=freqOpts;
+var _tfi=document.getElementById("tFreq"); if(_tfi) _tfi.innerHTML=freqOpts;
 setFlow("out");
 renderPeriods();
 renderDash();
