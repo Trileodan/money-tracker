@@ -393,7 +393,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 107 · delete fix</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 108 · reallocation fix</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -1010,22 +1010,8 @@ function load(){
         : todayISO();
     }
   });
-  // migrate: Lifestyle / Item Purchases / Entertainment (and legacy 'One Offs') -> 'Discretionary'
-  const COMBINE=["One Offs","Item Purchases","Lifestyle","Entertainment"];
-  const ren = c => COMBINE.indexOf(c)>=0 ? "Discretionary" : c;
-  (DB.txns||[]).forEach(t=>{ t.category=ren(t.category); });
-  (DB.recurring||[]).forEach(r=>{ r.category=ren(r.category); });
-  if(DB.targets){
-    let sum=+(DB.targets["Discretionary"]||0), found=false;
-    COMBINE.forEach(c=>{ if(DB.targets[c]!=null){ sum+=+DB.targets[c]||0; delete DB.targets[c]; found=true; } });
-    if(found) DB.targets["Discretionary"]=sum;
-    delete DB.targets["Credit Card"];   // category removed
-  }
-  // migrate: dynamic category list. 'Investing' -> 'Investments'; build defaults; keep any used category.
   const REMOVED=["important","credit card"];   // removed categories (entries stay in History)
-  (DB.txns||[]).forEach(t=>{ if(t.category==="Investing") t.category="Investments"; if(t.category==="Sky") t.category="TV"; });
-  (DB.recurring||[]).forEach(r=>{ if(r.category==="Investing") r.category="Investments"; if(r.category==="Sky") r.category="TV"; });
-  (DB.categories||[]).forEach(c=>{ if(c.name==="Sky" && !((DB.categories||[]).some(x=>x.name==="TV"))) c.name="TV"; });
+  // (Legacy every-load category renames removed — they renamed user categories on refresh and re-orphaned reallocated transactions.)
   if(!Array.isArray(DB.categories) || DB.categories.length===0) DB.categories=defaultCategories();
   // one-time removal of Important / Credit Card (so a user can still re-add them later if they want)
   if(!DB.removedImportantCC){
