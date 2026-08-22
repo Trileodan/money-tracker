@@ -393,7 +393,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 106 · category database</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 107 · delete fix</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -818,9 +818,9 @@ canvas{max-width:100%;}
   <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
     <h2 style="margin-top:0" id="catModalTitle">Edit category</h2>
     <div class="field"><label>Name</label><input id="ecName"></div>
-    <div class="field"><label>Type</label><select id="ecType">
-      <option value="fixed">Fixed bill — completes when paid</option>
-      <option value="flexible">Flexible — a soft spending aim</option>
+    <div class="field"><label>Type — sets Needs / Wants / Savings on the pie</label><select id="ecType">
+      <option value="fixed">Need — fixed bill (completes when paid)</option>
+      <option value="flexible">Want — flexible spending (counts toward your grade)</option>
       <option value="savings">Savings</option>
     </select></div>
     <div class="field"><label id="ecAmountLabel">Budget for this month (£)</label><input type="number" id="ecAmount" inputmode="decimal" placeholder="£"><p class="note" id="ecBudgetNote" style="margin:6px 0 0"></p></div>
@@ -1032,11 +1032,13 @@ function load(){
     DB.categories = DB.categories.filter(c=>REMOVED.indexOf(c.name.toLowerCase())<0);
     DB.removedImportantCC = true;
   }
+  if(!Array.isArray(DB.deletedCats)) DB.deletedCats=[];   // names the user has deleted — don't auto-recreate these
   (function(){
     const present={}; DB.categories.forEach(c=>present[c.name.toLowerCase()]=true);
+    const del={}; DB.deletedCats.forEach(nm=>del[(""+nm).toLowerCase()]=true);
     (DB.txns||[]).concat(DB.recurring||[]).forEach(x=>{
       const n=x.category;
-      if(n && INCOME_CATS.indexOf(n)<0 && REMOVED.indexOf(n.toLowerCase())<0 && !present[n.toLowerCase()]){
+      if(n && INCOME_CATS.indexOf(n)<0 && REMOVED.indexOf(n.toLowerCase())<0 && !del[n.toLowerCase()] && !present[n.toLowerCase()]){
         present[n.toLowerCase()]=true;
         DB.categories.push({id:"c"+Date.now()+Math.random().toString(36).slice(2,5), name:n, group:"Wants", amount:0, enabled:true, color:nextColor()});
       }
@@ -2385,6 +2387,7 @@ function saveCatEdit(){
   pinBudgetGaps(c, editMk);                            // freeze later gap months first so this edit only changes editMk
   if(!DB.monthTargets[editMk]) DB.monthTargets[editMk]={};
   DB.monthTargets[editMk][c.id]=amtNum;                // £0 is allowed — keeps the category active with a zero budget
+  if(Array.isArray(DB.deletedCats)) DB.deletedCats=DB.deletedCats.filter(x=>x!==(c.name||"").toLowerCase());
   save(); closeCatModal(); syncCatSelects(); try{ renderCatCfg(); }catch(e){} renderDash(); toast("Saved ✓");
 }
 function setCatAmount(id,v){ const c=allCats().find(x=>x.id===id); if(c){ c.amount=parseFloat(v)||0; save(); renderCatCfg(); renderDash(); } }
@@ -2451,7 +2454,10 @@ function delCat(id){
   const n=(DB.txns||[]).filter(t=>t.category===c.name).length;
   const msg = n>0 ? "Delete \""+c.name+"\"? Its "+n+" "+(n===1?"entry":"entries")+" will move to the top of History to be reallocated." : "Delete \""+c.name+"\"?";
   if(!confirm(msg)) return;
-  DB.categories=DB.categories.filter(x=>x.id!==id); save();
+  DB.categories=DB.categories.filter(x=>x.id!==id);
+  if(!Array.isArray(DB.deletedCats)) DB.deletedCats=[];
+  const _ln=c.name.toLowerCase(); if(DB.deletedCats.indexOf(_ln)<0) DB.deletedCats.push(_ln);
+  save();
   syncCatSelects(); renderCatCfg(); renderDash(); updOrphanBadge(); toast(n>0?"Deleted — reallocate in History":"Deleted");
 }
 function addCat(){
