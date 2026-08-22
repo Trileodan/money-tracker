@@ -393,7 +393,7 @@ canvas{max-width:100%;}
   <!-- ============ SETTINGS ============ -->
   <div class="page" id="page-set">
     <h1>Settings</h1>
-    <p class="tiny muted" style="margin:-6px 0 12px">Build 105 · settings toggles</p>
+    <p class="tiny muted" style="margin:-6px 0 12px">Build 106 · category database</p>
     <div class="acc" id="accIncome">
       <div class="acc-head" onclick="toggleAcc('accIncome')"><span>Your monthly income</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="acc-body">
@@ -833,7 +833,17 @@ canvas{max-width:100%;}
       <button class="btn sec" onclick="closeCatModal()">Cancel</button>
       <button class="btn" onclick="saveCatEdit()">Save</button>
     </div>
-    <button class="btn danger" id="ecDelete" style="margin-top:8px;width:100%;display:none" onclick="delCatFromEditor()">Delete category</button>
+    <button class="btn sec" id="ecRemoveMonth" style="margin-top:8px;width:100%;display:none" onclick="removeCatFromMonth()">Remove from this month</button>
+    <button class="btn danger" id="ecDelete" style="margin-top:8px;width:100%;display:none" onclick="delCatFromEditor()">Delete category (all months)</button>
+  </div>
+</div>
+
+<div class="modal" id="catPickModal">
+  <div class="sheet"><button type="button" class="xclose" onclick="xClose(this)" aria-label="Close">✕</button>
+    <h2 style="margin-top:0" id="catPickTitle">Add a category</h2>
+    <p class="sub" id="catPickSub" style="margin-top:2px"></p>
+    <div id="catPickList" style="margin-top:8px"></div>
+    <button class="btn" style="margin-top:12px;width:100%" onclick="closeCatPick();openNewCat()">＋ Create new category</button>
   </div>
 </div>
 
@@ -1170,16 +1180,19 @@ function setCatBudgetFromNow(c, amt){                 // change the base budget 
   c.budgets.sort((a,b)=>a.from<b.from?-1:1);
   c.amount=amt;                                       // mirror the current figure (past is protected by the seeded entry)
 }
-function monthTargetFor(cObj, mk){                    // effective monthly budget for a category in month mk
-  if(!cObj) return 0;
-  if(!catActiveInMonth(cObj, mk)) return 0;           // temporary category: no budget outside its active window
+function catCellForMonth(cObj, mk){                   // {on, budget} — per-month on/off + budget with carry-forward
+  if(!cObj) return {on:false, budget:0};
+  if(!catActiveInMonth(cObj, mk)) return {on:false, budget:0};
   const id=cObj.id, MT=DB.monthTargets||{};
-  const here=MT[mk]; if(here){ const v=here[id]; if(v!=null && v!=="" && !isNaN(+v)) return +v; }   // explicit budget set for this month
-  let bestK=null;                                      // else carry forward the most recent PRIOR month's budget
-  for(const k in MT){ if(k<mk){ const v=MT[k] && MT[k][id]; if(v!=null && v!=="" && !isNaN(+v)){ if(bestK===null || k>bestK) bestK=k; } } }
-  if(bestK!==null) return +MT[bestK][id];
-  return baseBudgetFor(cObj, mk);                      // legacy fallback for months before any per-month budget
+  let bestK=null;                                      // most recent explicit state at or before this month
+  for(const k in MT){ if(k<=mk){ const v=MT[k] && MT[k][id]; if(v!==undefined && v!==null && v!==""){ if(bestK===null || k>bestK) bestK=k; } } }
+  if(bestK!==null){ const v=MT[bestK][id]; if(v==="off") return {on:false, budget:0}; const nn=+v; if(!isNaN(nn)) return {on:true, budget:nn}; }
+  const b=baseBudgetFor(cObj, mk);                     // legacy: a category shows if it had a budget
+  return {on: b>0, budget: b>0?b:0};
 }
+function monthTargetFor(cObj, mk){ const st=catCellForMonth(cObj,mk); return st.on? st.budget : 0; }
+function catOnForMonth(cObj, mk){ return catCellForMonth(cObj,mk).on; }
+function catOnInPeriod(cObj){ return monthKeysInRange().some(mk=>catOnForMonth(cObj,mk)); }
 function mkLabel(mk){ const pp=mk.split("-"); return new Date(+pp[0],(+pp[1])-1,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
 function dashEditMonthKey(){                           // which month a budget edit applies to (from the dashboard timeframe)
   const n=new Date();
@@ -1197,7 +1210,7 @@ function pinBudgetGaps(cObj, fromMk){                  // freeze later un-set mo
     const mk=mkKey(cur.getFullYear(),cur.getMonth());
     if(mk>nowMk) break;
     const cell=DB.monthTargets[mk], has=cell && cell[cObj.id]!=null && cell[cObj.id]!=="";
-    if(!has){ const val=monthTargetFor(cObj, mk); if(!DB.monthTargets[mk]) DB.monthTargets[mk]={}; DB.monthTargets[mk][cObj.id]=val; }
+    if(!has){ const st=catCellForMonth(cObj, mk); if(!DB.monthTargets[mk]) DB.monthTargets[mk]={}; DB.monthTargets[mk][cObj.id]= st.on ? st.budget : "off"; }
     cur.setMonth(cur.getMonth()+1);
   }
 }
@@ -1694,7 +1707,7 @@ function renderDash(){
     const cObj = catByName(c);
     const target = effTargetForPeriod(cObj);
     return {c, out, inflow, net:Math.max(net,0), target};
-  }).filter(d=>d.out>0 || d.target>0).sort((a,b)=>{ const ra=dashCatRank(a), rb=dashCatRank(b); return (ra-rb)||((b.target||0)-(a.target||0))||(b.net-a.net); });
+  }).filter(d=>d.out>0 || d.target>0 || catOnInPeriod(catByName(d.c))).sort((a,b)=>{ const ra=dashCatRank(a), rb=dashCatRank(b); return (ra-rb)||((b.target||0)-(a.target||0))||(b.net-a.net); });
 
   // chart — toggles between per-category and Needs/Wants/Savings group breakdown
   const pcOf = v => targetBase>0 ? Math.round(v/targetBase*100) : 0;
@@ -1721,7 +1734,7 @@ function renderDash(){
     } else { _msum.style.display="none"; } }
   // category list
   const list=document.getElementById("catList");
-  const _addBox = EDIT_CATS ? '<div class="strbox" onclick="openNewCat()" style="grid-column:1 / -1;display:flex;align-items:center;justify-content:center;border:2px dashed var(--line);color:var(--muted);min-height:54px"><span style="font-size:18px;font-weight:800">+ Add category</span></div>' : '';
+  const _addBox = EDIT_CATS ? '<div class="strbox" onclick="openAddCatPicker()" style="grid-column:1 / -1;display:flex;align-items:center;justify-content:center;border:2px dashed var(--line);color:var(--muted);min-height:54px"><span style="font-size:18px;font-weight:800">+ Add category</span></div>' : '';
   if(data.length===0){ list.innerHTML = _addBox ? ('<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+_addBox+'</div>') : '<div class="empty">No spending in this period yet.</div>'; }
   else { let _savDivDone=false; list.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' + data.map(d=>{
     const pct = targetBase>0 ? (d.net/targetBase*100) : 0;
@@ -1754,7 +1767,7 @@ function renderDash(){
     else { if(_bud<=0){_col="var(--muted)";_tint="transparent";} else if(_paid>_bud+0.005){_col="var(--red)";_tint="rgba(239,68,68,.14)";} else {_col="var(--green)";_tint="rgba(16,185,129,.13)";} }
     let _h=`<div class="strbox" onclick="${EDIT_CATS?("editCatByName('"+_esc+"')"):("openHistory('"+_esc+"')")}" style="background:${_tint};${_border}">
       <div class="tiny" style="font-weight:700;display:flex;align-items:center;gap:6px;min-width:0"><span class="dot" style="background:${catColor(d.c)};flex:none"></span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.c}</span>${_complete?'<span style="color:#e8b923;flex:none">✓</span>':''}</div>
-      <div style="margin-top:6px"><span style="font-size:18px;font-weight:800;color:${_col}">${gbp0(_paid)}</span> <span class="tiny muted">/ ${_bud>0?gbp0(_bud):"—"}</span></div>`;
+      <div style="margin-top:6px"><span style="font-size:18px;font-weight:800;color:${_col}">${gbp0(_paid)}</span> <span class="tiny muted">/ ${gbp0(_bud)}</span></div>`;
     let _pre="";
     if(isSav && !_savDivDone){ _pre='<div style="grid-column:1 / -1;border-top:1px solid var(--line);margin:8px 0 2px;padding-top:6px" class="tiny muted">Savings</div>'; _savDivDone=true; }
     return _pre+_h+`</div>`;
@@ -2308,11 +2321,12 @@ function editCat(id){ const c=allCats().find(x=>x.id===id); if(!c) return; CEDIT
   document.getElementById("catModalTitle").textContent="Edit · "+mkLabel(editMk);
   document.getElementById("ecName").value=c.name;
   document.getElementById("ecType").value=(c.group==="Savings"?"savings":(isFlex(c)?"flexible":"fixed"));
-  const bv=monthTargetFor(c, editMk);
-  document.getElementById("ecAmount").value=(bv>0?bv:"");
+  const cell=catCellForMonth(c, editMk);
+  document.getElementById("ecAmount").value=(cell.on?cell.budget:"");
   document.getElementById("ecFrom").value=c.activeFrom||""; document.getElementById("ecTo").value=c.activeTo||"";
   const note=document.getElementById("ecBudgetNote"); if(note) note.textContent="Applies to "+mkLabel(editMk)+" only. Later months use this as their starting default until you change them.";
   document.getElementById("ecDelete").style.display="block";
+  const rm=document.getElementById("ecRemoveMonth"); if(rm) rm.style.display="block";
   document.getElementById("catModal").classList.add("on");
 }
 function editCatByName(name){ const c=catByName(name); if(c) editCat(c.id); }
@@ -2324,9 +2338,21 @@ function openNewCat(){ CEDIT=null;
   document.getElementById("ecFrom").value=""; document.getElementById("ecTo").value="";
   const note=document.getElementById("ecBudgetNote"); if(note) note.textContent="Applies to "+mkLabel(editMk)+" only. Later months use this as their starting default until you change them.";
   document.getElementById("ecDelete").style.display="none";
+  const rm=document.getElementById("ecRemoveMonth"); if(rm) rm.style.display="none";
   document.getElementById("catModal").classList.add("on");
 }
-function delCatFromEditor(){ if(CEDIT && confirm("Delete this category? Its past transactions are kept.")){ const id=CEDIT; closeCatModal(); delCat(id); renderDash(); } }
+function delCatFromEditor(){ if(CEDIT && confirm("Delete this category from every month? Its past transactions are kept and move to History to be reallocated.")){ const id=CEDIT; closeCatModal(); delCat(id); renderDash(); } }
+function removeCatFromMonth(){ if(!CEDIT) return; const c=allCats().find(x=>x.id===CEDIT); if(!c) return; const mk=dashEditMonthKey(); if(!DB.monthTargets) DB.monthTargets={}; pinBudgetGaps(c, mk); if(!DB.monthTargets[mk]) DB.monthTargets[mk]={}; DB.monthTargets[mk][c.id]="off"; save(); closeCatModal(); renderDash(); toast("Removed from "+mkLabel(mk)); }
+function openAddCatPicker(){ renderCatPick(); document.getElementById("catPickModal").classList.add("on"); }
+function closeCatPick(){ document.getElementById("catPickModal").classList.remove("on"); }
+function renderCatPick(){
+  const mk=dashEditMonthKey();
+  const sub=document.getElementById("catPickSub"); if(sub) sub.textContent="Turn an existing category on for "+mkLabel(mk)+", or create a new one.";
+  const off=activeCats().filter(c=>!catOnForMonth(c, mk));
+  const el=document.getElementById("catPickList"); if(!el) return;
+  el.innerHTML = off.length ? off.map(c=>`<div class="catrow"><div class="catrow-main"><span class="cname"><span class="dot" style="background:${c.color}"></span>${c.name}</span><button class="btn sec" style="width:auto;padding:5px 12px;margin-left:auto" onclick="turnCatOn('${c.id}')">Add</button></div></div>`).join("") : '<div class="tiny muted" style="padding:4px 0">Every category is already on this month. Create a new one below.</div>';
+}
+function turnCatOn(id){ const c=allCats().find(x=>x.id===id); if(!c) return; closeCatPick(); editCat(id); }
 function closeCatModal(){ document.getElementById("catModal").classList.remove("on"); CEDIT=null; }
 function saveCatEdit(){
   const name=document.getElementById("ecName").value.trim();
@@ -2335,12 +2361,13 @@ function saveCatEdit(){
   const group = type==="savings"?"Savings":(type==="flexible"?"Wants":"Needs");
   const flex = (type==="flexible");
   const amt=parseFloat(document.getElementById("ecAmount").value);
+  const amtNum=isNaN(amt)?0:amt;
   const af=document.getElementById("ecFrom").value||"", at=document.getElementById("ecTo").value||"";
   const editMk=dashEditMonthKey();
   // income cap: total budgeted for the edited month can't exceed that month's expected income
-  if(!isNaN(amt) && !(DB.pay&&DB.pay.selfEmployed)){
+  if(!(DB.pay&&DB.pay.selfEmployed)){
     const pp=editMk.split("-"); const inc=expectedIncomeForMonth(+pp[0],(+pp[1])-1);
-    let total=amt; activeCats().forEach(x=>{ if(x.id!==CEDIT) total+=monthTargetFor(x, editMk); });
+    let total=amtNum; activeCats().forEach(x=>{ if(x.id!==CEDIT) total+=monthTargetFor(x, editMk); });
     if(inc>0 && total > inc + 0.005){ toast("That would budget "+gbp0(total)+" — more than your expected income of "+gbp0(inc)+" this month"); return; }
   }
   let c;
@@ -2354,12 +2381,10 @@ function saveCatEdit(){
     c={id:"c"+Date.now()+Math.random().toString(36).slice(2,5), name, group, flex, amount:0, enabled:true, color:nextColor(), activeFrom:af, activeTo:at};
     DB.categories.push(c);
   }
-  if(!isNaN(amt)){
-    if(!DB.monthTargets) DB.monthTargets={};
-    pinBudgetGaps(c, editMk);                          // freeze later gap months first so this edit only changes editMk
-    if(!DB.monthTargets[editMk]) DB.monthTargets[editMk]={};
-    DB.monthTargets[editMk][c.id]=amt;
-  }
+  if(!DB.monthTargets) DB.monthTargets={};
+  pinBudgetGaps(c, editMk);                            // freeze later gap months first so this edit only changes editMk
+  if(!DB.monthTargets[editMk]) DB.monthTargets[editMk]={};
+  DB.monthTargets[editMk][c.id]=amtNum;                // £0 is allowed — keeps the category active with a zero budget
   save(); closeCatModal(); syncCatSelects(); try{ renderCatCfg(); }catch(e){} renderDash(); toast("Saved ✓");
 }
 function setCatAmount(id,v){ const c=allCats().find(x=>x.id===id); if(c){ c.amount=parseFloat(v)||0; save(); renderCatCfg(); renderDash(); } }
